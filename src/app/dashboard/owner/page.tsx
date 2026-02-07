@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 export default function OwnerDashboard() {
     const { profile, signOut, supabase } = useAuth();
@@ -91,9 +92,15 @@ export default function OwnerDashboard() {
                 </div>
 
                 <nav className="space-y-1 flex-1">
-                    <NavItem icon={<Users size={20} />} label="Live Queue" active />
-                    <NavItem icon={<TrendingUp size={20} />} label="Analytics" />
-                    <NavItem icon={<Settings size={20} />} label="Shop Settings" />
+                    <Link href="/dashboard/owner">
+                        <NavItem icon={<Users size={20} />} label="Live Queue" active />
+                    </Link>
+                    <Link href="/dashboard/owner/analytics">
+                        <NavItem icon={<TrendingUp size={20} />} label="Analytics" />
+                    </Link>
+                    <Link href="/dashboard/owner/settings">
+                        <NavItem icon={<Settings size={20} />} label="Shop Settings" />
+                    </Link>
                 </nav>
 
                 <div className="pt-6 border-t border-slate-100">

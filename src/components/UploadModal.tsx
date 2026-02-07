@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
 import { analyzePDFContent } from "@/lib/gemini";
-import { cn, generatePickupCode } from "@/lib/utils";
+import { cn, generatePickupCode, calculatePrintCost } from "@/lib/utils";
 import { PaymentView } from "./PaymentView";
 
 interface UploadModalProps {
@@ -31,6 +31,8 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
     const [order, setOrder] = useState<any>(null);
     const [vpa, setVpa] = useState<string>("nadheem@okicici"); // Default fallback
     const [rate, setRate] = useState<number>(2.00); // Default fallback ₹2
+    const [printType, setPrintType] = useState<'BW' | 'COLOR'>('BW');
+    const [sideType, setSideType] = useState<'SINGLE' | 'DOUBLE'>('SINGLE');
     const [error, setError] = useState<string | null>(null);
 
     const supabase = createBrowserClient(
@@ -91,6 +93,9 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
             const result = await analyzePDFContent(base64Content, file.name);
             setAnalysis(result);
 
+            // Calculate cost using the new utility
+            const totalCost = calculatePrintCost(result.pageCount, printType, sideType);
+
             setStatus('uploading');
 
             const filePath = `${userId}/${Date.now()}_${file.name}`;
@@ -108,7 +113,7 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
                     pickup_code: pickupCode,
                     status: 'pending_payment',
                     total_pages: result.pageCount,
-                    estimated_cost: result.pageCount * rate, // Use fetched rate
+                    estimated_cost: totalCost,
                     payment_status: 'unpaid'
                 })
                 .select()
@@ -180,17 +185,49 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
                                             <p className="text-sm text-slate-500 mt-1">Maximum file size 10MB</p>
                                         </div>
                                     ) : (
-                                        <div className="bg-slate-50 border border-slate-100 rounded-3xl p-6 flex items-center gap-4">
-                                            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white">
-                                                <FileText size={24} />
+                                        <div className="space-y-4">
+                                            <div className="bg-slate-50 border border-slate-100 rounded-3xl p-6 flex items-center gap-4">
+                                                <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white">
+                                                    <FileText size={24} />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-slate-900 truncate">{file.name}</p>
+                                                    <p className="text-xs text-slate-500 font-medium">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                                </div>
+                                                <button onClick={() => setFile(null)} className="text-slate-400 hover:text-red-500">
+                                                    <X size={20} />
+                                                </button>
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-bold text-slate-900 truncate">{file.name}</p>
-                                                <p className="text-xs text-slate-500 font-medium">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+
+                                            {/* Selection UI */}
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Print Color</label>
+                                                    <div className="bg-slate-100 p-1 rounded-2xl flex gap-1">
+                                                        <button
+                                                            onClick={() => setPrintType('BW')}
+                                                            className={cn("flex-1 py-2 rounded-xl text-xs font-bold transition-all", printType === 'BW' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}
+                                                        >B/W</button>
+                                                        <button
+                                                            onClick={() => setPrintType('COLOR')}
+                                                            className={cn("flex-1 py-2 rounded-xl text-xs font-bold transition-all", printType === 'COLOR' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}
+                                                        >Color</button>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Side Type</label>
+                                                    <div className="bg-slate-100 p-1 rounded-2xl flex gap-1">
+                                                        <button
+                                                            onClick={() => setSideType('SINGLE')}
+                                                            className={cn("flex-1 py-2 rounded-xl text-xs font-bold transition-all", sideType === 'SINGLE' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}
+                                                        >Single</button>
+                                                        <button
+                                                            onClick={() => setSideType('DOUBLE')}
+                                                            className={cn("flex-1 py-2 rounded-xl text-xs font-bold transition-all", sideType === 'DOUBLE' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}
+                                                        >Double</button>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <button onClick={() => setFile(null)} className="text-slate-400 hover:text-red-500">
-                                                <X size={20} />
-                                            </button>
                                         </div>
                                     )}
 
@@ -204,7 +241,7 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
                                     <button
                                         disabled={!file}
                                         onClick={handleProcess}
-                                        className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-xl shadow-blue-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                                        className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-xl shadow-blue-200 disabled:opacity-50 flex items-center justify-center gap-2 mt-4 hover:bg-blue-700 transition-colors"
                                     >
                                         Continue <ArrowRight size={20} />
                                     </button>

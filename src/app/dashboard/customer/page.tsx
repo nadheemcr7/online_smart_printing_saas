@@ -21,6 +21,7 @@ export default function CustomerDashboard() {
     const { profile, signOut, supabase, user } = useAuth();
     const [orders, setOrders] = useState<any[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [shopSettings, setShopSettings] = useState({ shop_name: "RIDHA PRINTERS", is_open: true });
 
     useEffect(() => {
         if (!user) return;
@@ -35,17 +36,36 @@ export default function CustomerDashboard() {
             setOrders(data || []);
         };
 
-        fetchMyOrders();
+        const fetchShopSettings = async () => {
+            const { data } = await supabase
+                .from("shop_settings")
+                .select("shop_name, is_open")
+                .limit(1)
+                .single();
 
-        const channel = supabase
+            if (data) setShopSettings(data);
+        };
+
+        fetchMyOrders();
+        fetchShopSettings();
+
+        const orderChannel = supabase
             .channel("user_orders")
             .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `customer_id=eq.${user.id}` }, () => {
                 fetchMyOrders();
             })
             .subscribe();
 
+        const settingsChannel = supabase
+            .channel("shop_settings")
+            .on("postgres_changes", { event: "UPDATE", schema: "public", table: "shop_settings" }, (payload) => {
+                setShopSettings(payload.new as any);
+            })
+            .subscribe();
+
         return () => {
-            supabase.removeChannel(channel);
+            supabase.removeChannel(orderChannel);
+            supabase.removeChannel(settingsChannel);
         };
     }, [supabase, user]);
 
@@ -63,7 +83,10 @@ export default function CustomerDashboard() {
                     <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
                         <Printer size={18} />
                     </div>
-                    <span className="font-bold text-lg">Solve Print</span>
+                    <span className="font-bold text-lg">{shopSettings.shop_name}</span>
+                    {!shopSettings.is_open && (
+                        <span className="bg-red-100 text-red-600 text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter">Closed</span>
+                    )}
                 </div>
                 <button onClick={signOut} className="text-sm font-bold text-slate-400">Logout</button>
             </nav>
@@ -77,15 +100,25 @@ export default function CustomerDashboard() {
 
                 {/* Action Button */}
                 <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setIsModalOpen(true)}
-                    className="w-full bg-blue-600 text-white p-6 rounded-3xl shadow-2xl shadow-blue-200 flex items-center justify-between group text-left"
+                    whileTap={shopSettings.is_open ? { scale: 0.95 } : {}}
+                    onClick={() => shopSettings.is_open && setIsModalOpen(true)}
+                    className={cn(
+                        "w-full p-6 rounded-3xl flex items-center justify-between group text-left transition-all",
+                        shopSettings.is_open
+                            ? "bg-blue-600 text-white shadow-2xl shadow-blue-200 cursor-pointer"
+                            : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                    )}
                 >
                     <div>
                         <p className="font-bold text-xl mb-1">New Print Job</p>
-                        <p className="text-blue-100 text-sm opacity-80">Upload PDF and get a code</p>
+                        <p className={cn("text-sm opacity-80", shopSettings.is_open ? "text-blue-100" : "text-slate-400")}>
+                            {shopSettings.is_open ? "Upload PDF and get a code" : "Shop is currently closed"}
+                        </p>
                     </div>
-                    <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md group-hover:bg-white/30 transition-colors">
+                    <div className={cn(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center backdrop-blur-md transition-colors",
+                        shopSettings.is_open ? "bg-white/20 group-hover:bg-white/30" : "bg-slate-200"
+                    )}>
                         <Plus size={28} />
                     </div>
                 </motion.button>
