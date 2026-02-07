@@ -14,12 +14,13 @@ import {
     Plus
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { UploadModal } from "@/components/UploadModal";
 import { cn } from "@/lib/utils";
 
 export default function CustomerDashboard() {
     const { profile, signOut, supabase, user } = useAuth();
     const [orders, setOrders] = useState<any[]>([]);
-    const [isUploading, setIsUploading] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     useEffect(() => {
         if (!user) return;
@@ -50,6 +51,12 @@ export default function CustomerDashboard() {
 
     return (
         <div className="min-h-screen bg-white font-sans">
+            <UploadModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                userId={user?.id || ""}
+            />
+
             {/* Mobile-Friendly Nav */}
             <nav className="h-16 border-b border-slate-100 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md sticky top-0 z-50">
                 <div className="flex items-center gap-2">
@@ -71,9 +78,10 @@ export default function CustomerDashboard() {
                 {/* Action Button */}
                 <motion.button
                     whileTap={{ scale: 0.95 }}
-                    className="w-full bg-blue-600 text-white p-6 rounded-3xl shadow-2xl shadow-blue-200 flex items-center justify-between group"
+                    onClick={() => setIsModalOpen(true)}
+                    className="w-full bg-blue-600 text-white p-6 rounded-3xl shadow-2xl shadow-blue-200 flex items-center justify-between group text-left"
                 >
-                    <div className="text-left">
+                    <div>
                         <p className="font-bold text-xl mb-1">New Print Job</p>
                         <p className="text-blue-100 text-sm opacity-80">Upload PDF and get a code</p>
                     </div>
