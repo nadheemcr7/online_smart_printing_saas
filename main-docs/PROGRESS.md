@@ -5,11 +5,13 @@
 - [x] Initialize Next.js project with Tailwind CSS & TypeScript
 - [x] Install dependencies (`supabase`, `framer-motion`, `gemini-ai`)
 - [x] Setup folder structure & internal utility functions
+- [x] Sync with GitHub Repository ([printing_saas](https://github.com/nadheemcr7/printing_saas))
 
 ## Phase 2: Database & Storage [/]
 - [x] Design SQL Schema ([schema.sql](supabase/schema.sql))
 - [x] Create Tables & Triggers in Supabase DB [x]
 - [x] Organize SQL modularly into `supabase/migrations` [x]
+- [x] Implement Dynamic UPI Switching logic (DB Level) [x]
 - [/] Implement Supabase Auth (Customer, Owner, Developer roles) [/]
 - [ ] Configure Supabase Storage buckets for PDFs
 - [ ] Apply Row Level Security (RLS) policies
@@ -25,6 +27,7 @@
     - [ ] "One-Click" Batch status updates (Printing -> Ready)
     - [ ] Rate Management UI (Owner sets ₹ rates)
     - [ ] Automatic document deletion logic
+    - [ ] **Emergency UPI Switch** (Toggle bank IDs)
 - [ ] **Developer Portal**:
     - [ ] System-wide user management
     - [ ] Global order stats
