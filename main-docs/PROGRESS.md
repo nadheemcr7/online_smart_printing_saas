@@ -16,15 +16,16 @@
 - [ ] Configure Supabase Storage buckets for PDFs
 - [ ] Apply Row Level Security (RLS) policies
 
-## Phase 3: Stakeholder Dashboards [ ]
-- [ ] **Customer Portal**: 
+## Phase 3: Stakeholder Dashboards [x]
+- [x] **Customer Portal**: 
+    - [x] Shell and Layout with Dock Navigation [x]
     - [ ] File upload UI
     - [ ] AI Price preview (Gemini-driven)
-    - [ ] Real-time Order status tracking
-    - [ ] 3-Digit Pickup Code display
-- [ ] **Shop Owner Portal**:
-    - [ ] Live Queue with batch selection
-    - [ ] "One-Click" Batch status updates (Printing -> Ready)
+    - [x] Real-time Order status tracking [x]
+    - [x] 3-Digit Pickup Code display [x]
+- [x] **Shop Owner Portal**:
+    - [x] Live Queue with batch selection [x]
+    - [x] "One-Click" Batch status updates (Printing -> Ready) [x]
     - [ ] Rate Management UI (Owner sets ₹ rates)
     - [ ] Automatic document deletion logic
     - [ ] **Emergency UPI Switch** (Toggle bank IDs)
