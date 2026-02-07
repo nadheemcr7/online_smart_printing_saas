@@ -58,6 +58,7 @@
 1. **Auto-Status**: Moving one batch to "Ready" automatically triggers when the owner starts the next batch.
 2. **Auto-Clean**: Server storage is never filled; old or completed files are wiped automatically.
 3. **AI Price Validator**: The shop owner doesn't need to manually check page counts anymore.
+4. **Live UPI Management**: The owner can update their UPI ID (VPA) directly through the UI at any time. This allows switching banks or accounts instantly if there are network issues.
 
 ---
 

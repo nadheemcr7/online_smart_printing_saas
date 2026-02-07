@@ -11,8 +11,8 @@
 - [x] Design SQL Schema ([schema.sql](supabase/schema.sql))
 - [x] Create Tables & Triggers in Supabase DB [x]
 - [x] Organize SQL modularly into `supabase/migrations` [x]
-- [x] Implement Dynamic UPI Switching logic (DB Level) [x]
-- [/] Implement Supabase Auth (Customer, Owner, Developer roles) [/]
+- [x] Implement Live UPI Editing logic (DB Level) [x]
+- [x] Implement Supabase Auth (Login, Signup, Role Metadata) [x]
 - [ ] Configure Supabase Storage buckets for PDFs
 - [ ] Apply Row Level Security (RLS) policies
 
