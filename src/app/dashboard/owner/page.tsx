@@ -18,12 +18,15 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { HandoverModal } from "@/components/HandoverModal";
+import { Handshake } from "lucide-react";
 
 export default function OwnerDashboard() {
     const { profile, signOut, supabase } = useAuth();
     const [orders, setOrders] = useState<any[]>([]);
     const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isHandoverOpen, setIsHandoverOpen] = useState(false);
 
     // Stats
     const stats = [
@@ -122,10 +125,16 @@ export default function OwnerDashboard() {
 
             {/* Main Content */}
             <main className="flex-1 flex flex-col min-w-0">
-                {/* Header */}
                 <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-20">
                     <h2 className="text-lg font-bold">Shop Queue</h2>
                     <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => setIsHandoverOpen(true)}
+                            className="bg-blue-600 text-white px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2 hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-100"
+                        >
+                            <Handshake size={18} />
+                            Verify Code
+                        </button>
                         <div className="relative hidden md:block">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                             <input
@@ -139,6 +148,11 @@ export default function OwnerDashboard() {
                         </button>
                     </div>
                 </header>
+
+                <HandoverModal
+                    isOpen={isHandoverOpen}
+                    onClose={() => setIsHandoverOpen(false)}
+                />
 
                 {/* Dashboard Content */}
                 <div className="p-8 space-y-8">
@@ -287,15 +301,24 @@ function NavItem({ icon, label, active = false }: any) {
 
 function StatusBadge({ status }: { status: string }) {
     const styles: any = {
+        pending_payment: "bg-slate-50 text-slate-400 border-slate-100",
         queued: "bg-orange-50 text-orange-600 border-orange-100",
         printing: "bg-blue-50 text-blue-600 border-blue-100",
         ready: "bg-emerald-50 text-emerald-600 border-emerald-100",
-        completed: "bg-slate-50 text-slate-400 border-slate-100",
+        completed: "bg-slate-100 text-slate-500 border-slate-200",
+    };
+
+    const labels: any = {
+        pending_payment: "Pending Pay",
+        queued: "In Queue",
+        printing: "Printing",
+        ready: "Ready",
+        completed: "Handed Over",
     };
 
     return (
         <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border", styles[status])}>
-            {status}
+            {labels[status] || status}
         </span>
     );
 }

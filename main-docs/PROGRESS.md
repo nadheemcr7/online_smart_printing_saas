@@ -7,33 +7,33 @@
 - [x] Setup folder structure & internal utility functions
 - [x] Sync with GitHub Repository ([printing_saas](https://github.com/nadheemcr7/printing_saas))
 
-## Phase 2: Database & Storage [/]
+## Phase 2: Database & Storage [x]
 - [x] Design SQL Schema ([schema.sql](supabase/schema.sql))
 - [x] Create Tables & Triggers in Supabase DB [x]
 - [x] Organize SQL modularly into `supabase/migrations` [x]
 - [x] Implement Live UPI Editing logic (DB Level) [x]
 - [x] Implement Supabase Auth (Login, Signup, Role Metadata) [x]
-- [ ] Configure Supabase Storage buckets for PDFs
-- [ ] Apply Row Level Security (RLS) policies
+- [x] Configure Supabase Storage buckets for PDFs [x]
+- [x] Apply Row Level Security (RLS) policies [x]
 
 ## Phase 3: Stakeholder Dashboards [x]
 - [x] **Customer Portal**: 
     - [x] Shell and Layout with Dock Navigation [x]
-    - [ ] File upload UI
-    - [ ] AI Price preview (Gemini-driven)
+    - [x] File upload UI (React Dropzone) [x]
+    - [x] AI Price preview (Gemini-driven) [x]
     - [x] Real-time Order status tracking [x]
     - [x] 3-Digit Pickup Code display [x]
 - [x] **Shop Owner Portal**:
     - [x] Live Queue with batch selection [x]
     - [x] "One-Click" Batch status updates (Printing -> Ready) [x]
-    - [ ] Rate Management UI (Owner sets ₹ rates)
-    - [ ] Automatic document deletion logic
-    - [ ] **Emergency UPI Switch** (Toggle bank IDs)
+    - [x] Rate Management UI (Owner sets ₹ rates) [x]
+    - [x] **Emergency UPI Switch** (Toggle bank IDs) [x]
+    - [ ] Automatic document deletion logic (Scheduled Task)
 - [ ] **Developer Portal**:
     - [ ] System-wide user management
     - [ ] Global order stats
 
-## Phase 4: Core Workflow & Payments [ ]
+## Phase 4: Core Workflow & Payments [x]
 - [x] **Smart Payment Flow**:
     - [x] Dynamic UPI QR Code / Intent generation [x]
     - [x] **AI Screenshot Analysis** (OCR + Verification) [x]
@@ -48,7 +48,7 @@
 - [x] [Daily Log: 2026-02-07](.agent/daily-logs/2026-02-07.md)
 
 ## Phase 5: Testing & Polishing [ ]
-- [ ] Test owner/customer real-time sync
+- [ ] Test owner/customer real-time sync with real phone
 - [ ] Verify payment account switching logic
-- [ ] UI/UX polishing with premium animations
-- [ ] Final walkthrough and documentation
+- [ ] Add "Order Handover" verification (Owner scans student code)
+- [ ] Mobile PWA installation support

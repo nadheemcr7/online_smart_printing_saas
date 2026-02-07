@@ -11,7 +11,8 @@ import {
     Clock,
     AlertCircle,
     ChevronRight,
-    Plus
+    Plus,
+    Handshake
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { UploadModal } from "@/components/UploadModal";
@@ -189,23 +190,33 @@ export default function CustomerDashboard() {
 
 function StatusBadge({ status }: { status: string }) {
     const styles: any = {
-        queued: "text-orange-600",
-        printing: "text-blue-600",
-        ready: "text-emerald-600",
-        completed: "text-slate-400",
+        pending_payment: "text-slate-400 bg-slate-50 border-slate-100",
+        queued: "text-orange-600 bg-orange-50 border-orange-100",
+        printing: "text-blue-600 bg-blue-50 border-blue-100",
+        ready: "text-emerald-600 bg-emerald-50 border-emerald-100",
+        completed: "text-slate-500 bg-slate-50 border-slate-100",
     };
 
     const icons: any = {
+        pending_payment: <Clock size={12} />,
         queued: <Clock size={12} />,
         printing: <Printer size={12} />,
         ready: <CheckCircle2 size={12} />,
-        completed: <AlertCircle size={12} />,
+        completed: <Handshake size={12} />,
+    };
+
+    const labels: any = {
+        pending_payment: 'Waiting for Pay',
+        queued: 'In Queue',
+        printing: 'Printing',
+        ready: 'Ready for Pickup',
+        completed: 'Handed Over',
     };
 
     return (
-        <span className={cn("inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider", styles[status])}>
+        <span className={cn("inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full border", styles[status])}>
             {icons[status]}
-            {status}
+            {labels[status] || status}
         </span>
     );
 }
