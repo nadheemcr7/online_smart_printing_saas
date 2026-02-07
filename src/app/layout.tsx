@@ -15,7 +15,12 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   title: "Solve Print | Smart College Printing Queue",
   description: "Skip the queue with AI-powered printing. Upload, pay via UPI, and collect with a code.",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({

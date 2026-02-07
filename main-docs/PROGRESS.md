@@ -36,9 +36,9 @@
 ## Phase 4: Core Workflow & Payments [x]
 - [x] **Smart Payment Flow**:
     - [x] Dynamic UPI QR Code / Intent generation [x]
-    - [x] **AI Screenshot Analysis** (OCR + Verification) [x]
-    - [x] Automated 'Paid' status transitions [x]
-- [x] Implement Gemini AI "File Inspector" (Page counting) [x]
+    - [x] ~~AI Screenshot Analysis~~ → **Manual Owner Verification** [x]
+    - [x] Owner-confirmed 'Paid' status transitions [x]
+- [x] ~~Gemini AI "File Inspector"~~ → **Local PDF Page Counting** (pdf-lib) [x]
 - [x] Real-time UI updates (Supabase Realtime) [x]
 - [x] **Order Handover Verification** (3-digit code system) [x]
 - [ ] 24-hour auto-cleanup script for old files (Future optimization)
@@ -46,6 +46,7 @@
 ---
 
 ## 📜 Activity History
+- [x] [Daily Log: 2026-02-08](.agent/daily-logs/2026-02-08.md) - **AI Removal & Manual Verification**
 - [x] [Daily Log: 2026-02-07](.agent/daily-logs/2026-02-07.md)
 
 ## Phase 5: Testing & Polishing [x]
@@ -53,3 +54,13 @@
 - [x] Mobile UPI Intent Testing [x]
 - [x] Real-time Status Sync Testing [x]
 - [x] Handover Workflow Verification [x]
+
+## Phase 6: AI Removal & Reliability (Current)
+- [x] Remove Gemini AI dependency for PDF analysis
+- [x] Remove AI payment screenshot verification
+- [x] Implement manual owner payment confirmation
+- [x] Add screenshot storage bucket and policies
+- [x] Update owner dashboard with verification buttons
+- [x] Fix logout functionality across all dashboards
+- [ ] Add push notifications for payment confirmations
+- [ ] Mobile responsiveness audit

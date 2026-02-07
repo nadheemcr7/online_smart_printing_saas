@@ -3,8 +3,11 @@
 import { motion } from "framer-motion";
 import { Printer, Zap, Shield, Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function LandingPage() {
+  const { user, profile, signOut, loading } = useAuth();
+
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Navigation */}
@@ -16,17 +19,39 @@ export default function LandingPage() {
             </div>
             <span className="text-xl font-bold tracking-tight">Solve Print</span>
           </div>
-          <div className="flex items-center gap-6">
-            <Link href="/login" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
-              Login
-            </Link>
-            <Link
-              href="/signup"
-              className="bg-slate-950 text-white px-5 py-2 rounded-full text-sm font-semibold hover:bg-slate-800 transition-all shadow-md active:scale-95"
-            >
-              Get Started
-            </Link>
-          </div>
+
+          {!loading && (
+            <div className="flex items-center gap-6">
+              {user ? (
+                <>
+                  <Link
+                    href={profile?.role === 'owner' ? '/dashboard/owner' : profile?.role === 'developer' ? '/dashboard/developer' : '/dashboard/customer'}
+                    className="text-sm font-bold text-blue-600 hover:text-blue-700 underline decoration-blue-200 underline-offset-4"
+                  >
+                    Go to Dashboard
+                  </Link>
+                  <button
+                    onClick={signOut}
+                    className="bg-red-50 text-red-600 px-5 py-2 rounded-full text-sm font-bold hover:bg-red-100 hover:shadow-lg hover:shadow-red-100 transition-all duration-200 active:scale-95 flex items-center gap-2"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+                    Login
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="bg-slate-950 text-white px-5 py-2 rounded-full text-sm font-semibold hover:bg-slate-800 transition-all shadow-md active:scale-95"
+                  >
+                    Get Started
+                  </Link>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </nav>
 
@@ -68,19 +93,31 @@ export default function LandingPage() {
               transition={{ delay: 0.3 }}
               className="flex flex-col sm:flex-row gap-4"
             >
-              <Link
-                href="/signup"
-                className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-2 group active:scale-95"
-              >
-                Start Printing Now
-                <ArrowRight className="group-hover:translate-x-1 transition-transform" />
-              </Link>
-              <Link
-                href="/login"
-                className="bg-white text-slate-900 border-2 border-slate-100 px-8 py-4 rounded-2xl font-bold text-lg hover:border-slate-300 transition-all flex items-center justify-center active:scale-95"
-              >
-                Owner Login
-              </Link>
+              {user ? (
+                <Link
+                  href={profile?.role === 'owner' ? '/dashboard/owner' : profile?.role === 'developer' ? '/dashboard/developer' : '/dashboard/customer'}
+                  className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-2 group active:scale-95"
+                >
+                  Return to Dashboard
+                  <ArrowRight className="group-hover:translate-x-1 transition-transform" />
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/signup"
+                    className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-2 group active:scale-95"
+                  >
+                    Start Printing Now
+                    <ArrowRight className="group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="bg-white text-slate-900 border-2 border-slate-100 px-8 py-4 rounded-2xl font-bold text-lg hover:border-slate-300 transition-all flex items-center justify-center active:scale-95"
+                  >
+                    Owner Login
+                  </Link>
+                </>
+              )}
             </motion.div>
           </div>
         </div>

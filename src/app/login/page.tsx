@@ -40,7 +40,9 @@ export default function LoginPage() {
 
             if (profileError) throw profileError;
 
-            if (profile.role === "owner" || profile.role === "developer") {
+            if (profile.role === "developer") {
+                router.push("/dashboard/developer");
+            } else if (profile.role === "owner") {
                 router.push("/dashboard/owner");
             } else {
                 router.push("/dashboard/customer");

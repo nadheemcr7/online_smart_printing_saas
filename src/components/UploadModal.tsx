@@ -14,26 +14,27 @@ import {
     ArrowRight
 } from "lucide-react";
 import { createBrowserClient } from "@supabase/ssr";
-import { analyzePDFContent } from "@/lib/gemini";
-import { cn, generatePickupCode, calculatePrintCost } from "@/lib/utils";
+import { cn, generatePickupCode, calculatePrintCost, getPdfPageCount, formatCurrency } from "@/lib/utils";
 import { PaymentView } from "./PaymentView";
 
 interface UploadModalProps {
     isOpen: boolean;
     onClose: () => void;
     userId: string;
+    resumeOrder?: any;
 }
 
-export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
+export function UploadModal({ isOpen, onClose, userId, resumeOrder }: UploadModalProps) {
     const [file, setFile] = useState<File | null>(null);
     const [status, setStatus] = useState<'idle' | 'analyzing' | 'uploading' | 'payment' | 'success' | 'error'>('idle');
     const [analysis, setAnalysis] = useState<any>(null);
     const [order, setOrder] = useState<any>(null);
-    const [vpa, setVpa] = useState<string>("nadheem@okicici"); // Default fallback
+    const [vpa, setVpa] = useState<string>("shop@upi"); // Default fallback
     const [rate, setRate] = useState<number>(2.00); // Default fallback ₹2
     const [printType, setPrintType] = useState<'BW' | 'COLOR'>('BW');
     const [sideType, setSideType] = useState<'SINGLE' | 'DOUBLE'>('SINGLE');
     const [error, setError] = useState<string | null>(null);
+    const [localPages, setLocalPages] = useState<number>(0);
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,31 +44,57 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
     useEffect(() => {
         // Fetch Owner's UPI VPA and Rates
         const fetchSettings = async () => {
-            const { data: profileData } = await supabase
-                .from("profiles")
-                .select("vpa")
-                .eq("role", "owner")
-                .single();
+            // 1. Try fetching from shop_settings first (Official Source)
+            const { data: shopData } = await supabase
+                .from("shop_settings")
+                .select("primary_vpa, backup_vpa, active_vpa_type")
+                .limit(1);
 
-            if (profileData?.vpa) setVpa(profileData.vpa);
+            if (shopData && shopData[0]) {
+                const s = shopData[0];
+                const activeVpa = s.active_vpa_type === 'primary' ? s.primary_vpa : s.backup_vpa;
+                if (activeVpa) {
+                    setVpa(activeVpa);
+                }
+            } else {
+                // 2. Fallback to any owner's VPA from profiles
+                const { data: profileData } = await supabase
+                    .from("profiles")
+                    .select("vpa")
+                    .eq("role", "owner")
+                    .limit(1);
+
+                if (profileData && profileData[0]?.vpa) setVpa(profileData[0].vpa);
+            }
 
             const { data: pricingData } = await supabase
                 .from("pricing_config")
                 .select("rate_per_page")
-                .limit(1)
-                .single();
+                .limit(1);
 
-            if (pricingData?.rate_per_page) setRate(Number(pricingData.rate_per_page));
+            if (pricingData && pricingData[0]?.rate_per_page) setRate(Number(pricingData[0].rate_per_page));
         };
 
         fetchSettings();
     }, [supabase]);
 
-    const onDrop = useCallback((acceptedFiles: File[]) => {
+    useEffect(() => {
+        if (isOpen && resumeOrder) {
+            setOrder(resumeOrder);
+            setStatus('payment');
+        }
+    }, [isOpen, resumeOrder]);
+
+    const onDrop = useCallback(async (acceptedFiles: File[]) => {
         if (acceptedFiles[0]) {
-            setFile(acceptedFiles[0]);
+            const selectedFile = acceptedFiles[0];
+            setFile(selectedFile);
             setStatus('idle');
             setError(null);
+
+            // Early local scan for instant feedback
+            const pages = await getPdfPageCount(selectedFile);
+            setLocalPages(pages);
         }
     }, []);
 
@@ -81,23 +108,16 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
         if (!file) return;
 
         try {
-            setStatus('analyzing');
-
-            const reader = new FileReader();
-            const base64Promise = new Promise<string>((resolve) => {
-                reader.onload = () => resolve((reader.result as string).split(',')[1]);
-                reader.readAsDataURL(file);
-            });
-            const base64Content = await base64Promise;
-
-            const result = await analyzePDFContent(base64Content, file.name);
-            setAnalysis(result);
-
-            // Calculate cost using the new utility
-            const totalCost = calculatePrintCost(result.pageCount, printType, sideType);
-
             setStatus('uploading');
 
+            // 1. LOCAL SCAN (Instant & Reliable)
+            const localPageCount = await getPdfPageCount(file);
+            console.log("Local Page Count:", localPageCount);
+
+            // Calculate cost
+            const totalCost = calculatePrintCost(localPageCount, printType, sideType);
+
+            // 2. Upload to Storage
             const filePath = `${userId}/${Date.now()}_${file.name}`;
             const { error: uploadError } = await supabase.storage
                 .from('documents')
@@ -105,6 +125,7 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
 
             if (uploadError) throw uploadError;
 
+            // 3. Create Order
             const pickupCode = generatePickupCode();
             const { data: newOrder, error: orderError } = await supabase
                 .from('orders')
@@ -112,9 +133,10 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
                     customer_id: userId,
                     pickup_code: pickupCode,
                     status: 'pending_payment',
-                    total_pages: result.pageCount,
+                    total_pages: localPageCount,
                     estimated_cost: totalCost,
-                    payment_status: 'unpaid'
+                    payment_status: 'unpaid',
+                    file_path: filePath
                 })
                 .select()
                 .single();
@@ -192,7 +214,15 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-bold text-slate-900 truncate">{file.name}</p>
-                                                    <p className="text-xs text-slate-500 font-medium">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-xs text-slate-500 font-medium">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                                        <span className="text-slate-300">•</span>
+                                                        <p className="text-xs text-blue-600 font-bold">{localPages} Pages</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm font-black text-slate-900">{formatCurrency(calculatePrintCost(localPages, printType, sideType))}</p>
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Est. Cost</p>
                                                 </div>
                                                 <button onClick={() => setFile(null)} className="text-slate-400 hover:text-red-500">
                                                     <X size={20} />
@@ -260,10 +290,10 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
                                     </div>
                                     <div className="space-y-2">
                                         <p className="text-xl font-bold font-display text-slate-900">
-                                            {status === 'analyzing' ? "AI is scanning your document..." : "Adding to queue..."}
+                                            Processing document...
                                         </p>
                                         <p className="text-slate-500 font-medium px-8">
-                                            Calculating the best price for your document.
+                                            Preparing your file and calculating the best price.
                                         </p>
                                     </div>
                                 </div>
@@ -271,7 +301,7 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
                                 <PaymentView
                                     orderId={order.id}
                                     amount={order.estimated_cost}
-                                    vpa="nadheem@okicici" // Placeholder
+                                    vpa={vpa}
                                     onSuccess={() => {
                                         setStatus('success');
                                         setTimeout(() => { onClose(); reset(); }, 2000);

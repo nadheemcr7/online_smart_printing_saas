@@ -13,13 +13,17 @@ import {
     Bell,
     Search,
     CheckSquare,
-    Square
+    Square,
+    Hourglass,
+    Eye,
+    Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { HandoverModal } from "@/components/HandoverModal";
 import { Handshake } from "lucide-react";
+import { OwnerSidebar } from "@/components/OwnerSidebar";
 
 export default function OwnerDashboard() {
     const { profile, signOut, supabase } = useAuth();
@@ -30,7 +34,8 @@ export default function OwnerDashboard() {
 
     // Stats
     const stats = [
-        { label: "Pending", value: orders.filter(o => o.status === 'queued').length, icon: <Clock className="text-orange-500" /> },
+        { label: "Verifying", value: orders.filter(o => o.status === 'pending_verification').length, icon: <Hourglass className="text-purple-500" /> },
+        { label: "Queued", value: orders.filter(o => o.status === 'queued').length, icon: <Clock className="text-orange-500" /> },
         { label: "Printing", value: orders.filter(o => o.status === 'printing').length, icon: <Printer className="text-blue-500" /> },
         { label: "Ready", value: orders.filter(o => o.status === 'ready').length, icon: <CheckCircle2 className="text-emerald-500" /> },
     ];
@@ -85,43 +90,7 @@ export default function OwnerDashboard() {
 
     return (
         <div className="min-h-screen bg-slate-50 flex">
-            {/* Sidebar */}
-            <aside className="w-64 bg-white border-r border-slate-200 p-6 flex flex-col hidden lg:flex">
-                <div className="flex items-center gap-2 mb-10">
-                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
-                        <Printer size={20} />
-                    </div>
-                    <span className="font-bold text-xl tracking-tight">Solve Print</span>
-                </div>
-
-                <nav className="space-y-1 flex-1">
-                    <Link href="/dashboard/owner">
-                        <NavItem icon={<Users size={20} />} label="Live Queue" active />
-                    </Link>
-                    <Link href="/dashboard/owner/analytics">
-                        <NavItem icon={<TrendingUp size={20} />} label="Analytics" />
-                    </Link>
-                    <Link href="/dashboard/owner/settings">
-                        <NavItem icon={<Settings size={20} />} label="Shop Settings" />
-                    </Link>
-                </nav>
-
-                <div className="pt-6 border-t border-slate-100">
-                    <div className="flex items-center gap-3 mb-4 px-2">
-                        <div className="w-8 h-8 bg-slate-200 rounded-full" />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold truncate">{profile?.full_name || "Owner"}</p>
-                            <p className="text-xs text-slate-500 capitalize">{profile?.role}</p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={signOut}
-                        className="w-full text-left px-2 py-2 text-sm font-medium text-slate-500 hover:text-red-600 transition-colors"
-                    >
-                        Sign Out
-                    </button>
-                </div>
-            </aside>
+            <OwnerSidebar />
 
             {/* Main Content */}
             <main className="flex-1 flex flex-col min-w-0">
@@ -271,9 +240,41 @@ export default function OwnerDashboard() {
                                                 <StatusBadge status={order.status} />
                                             </td>
                                             <td className="px-6 py-4 text-right">
-                                                <button className="p-2 text-slate-400 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition-color">
-                                                    <MoreVertical size={18} />
-                                                </button>
+                                                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    {order.status === 'pending_verification' && (
+                                                        <>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    const { data } = await supabase.storage.from('screenshots').createSignedUrl(order.payment_screenshot, 60);
+                                                                    if (data?.signedUrl) window.open(data.signedUrl);
+                                                                }}
+                                                                title="View Proof"
+                                                                className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-all"
+                                                            >
+                                                                <Eye size={18} />
+                                                            </button>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    await supabase.from('orders').update({ payment_status: 'paid', status: 'queued' }).eq('id', order.id);
+                                                                }}
+                                                                title="Confirm Payment"
+                                                                className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                                            >
+                                                                <CheckCircle2 size={18} />
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    <button
+                                                        onClick={async () => {
+                                                            const { data } = await supabase.storage.from('documents').createSignedUrl(order.file_path, 60);
+                                                            if (data?.signedUrl) window.open(data.signedUrl);
+                                                        }}
+                                                        title="Download Document"
+                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                                    >
+                                                        <Printer size={18} />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -289,19 +290,20 @@ export default function OwnerDashboard() {
 
 function NavItem({ icon, label, active = false }: any) {
     return (
-        <a href="#" className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all",
+        <div className={cn(
+            "flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer",
             active ? "bg-blue-50 text-blue-600 shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
         )}>
             {icon}
             {label}
-        </a>
+        </div>
     );
 }
 
 function StatusBadge({ status }: { status: string }) {
     const styles: any = {
         pending_payment: "bg-slate-50 text-slate-400 border-slate-100",
+        pending_verification: "bg-purple-50 text-purple-600 border-purple-100",
         queued: "bg-orange-50 text-orange-600 border-orange-100",
         printing: "bg-blue-50 text-blue-600 border-blue-100",
         ready: "bg-emerald-50 text-emerald-600 border-emerald-100",
@@ -310,6 +312,7 @@ function StatusBadge({ status }: { status: string }) {
 
     const labels: any = {
         pending_payment: "Pending Pay",
+        pending_verification: "Verifying",
         queued: "In Queue",
         printing: "Printing",
         ready: "Ready",

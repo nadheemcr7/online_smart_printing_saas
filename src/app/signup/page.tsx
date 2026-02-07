@@ -40,9 +40,9 @@ export default function SignupPage() {
 
             if (authError) throw authError;
 
-            if (data) {
-                alert("Account created! Please check your email for verification.");
-                router.push("/login");
+            if (data && data.user) {
+                // Since email confirmation is off, redirect immediately
+                router.push("/dashboard/customer");
             }
         } catch (err: any) {
             setError(err.message || "Failed to create account");

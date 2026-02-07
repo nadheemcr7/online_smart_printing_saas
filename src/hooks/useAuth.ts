@@ -55,8 +55,18 @@ export const useAuth = () => {
     }, [supabase, router]);
 
     const signOut = async () => {
-        await supabase.auth.signOut();
-        router.push("/login");
+        try {
+            await supabase.auth.signOut();
+            // Clear any cached state
+            setUser(null);
+            setProfile(null);
+            // Force hard navigation to clear all state
+            window.location.replace("/login");
+        } catch (error) {
+            console.error("Sign out error:", error);
+            // Fallback: force redirect anyway
+            window.location.replace("/login");
+        }
     };
 
     return { user, profile, loading, signOut, supabase };

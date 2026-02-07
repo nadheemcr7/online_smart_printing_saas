@@ -12,7 +12,8 @@ import {
     AlertCircle,
     ChevronRight,
     Plus,
-    Handshake
+    Handshake,
+    LogOut
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { UploadModal } from "@/components/UploadModal";
@@ -22,6 +23,7 @@ export default function CustomerDashboard() {
     const { profile, signOut, supabase, user } = useAuth();
     const [orders, setOrders] = useState<any[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [shopSettings, setShopSettings] = useState({ shop_name: "RIDHA PRINTERS", is_open: true });
 
     useEffect(() => {
@@ -41,10 +43,9 @@ export default function CustomerDashboard() {
             const { data } = await supabase
                 .from("shop_settings")
                 .select("shop_name, is_open")
-                .limit(1)
-                .single();
+                .limit(1);
 
-            if (data) setShopSettings(data);
+            if (data && data[0]) setShopSettings(data[0]);
         };
 
         fetchMyOrders();
@@ -74,8 +75,12 @@ export default function CustomerDashboard() {
         <div className="min-h-screen bg-white font-sans">
             <UploadModal
                 isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
+                onClose={() => {
+                    setIsModalOpen(false);
+                    setSelectedOrder(null);
+                }}
                 userId={user?.id || ""}
+                resumeOrder={selectedOrder}
             />
 
             {/* Mobile-Friendly Nav */}
@@ -89,7 +94,13 @@ export default function CustomerDashboard() {
                         <span className="bg-red-100 text-red-600 text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter">Closed</span>
                     )}
                 </div>
-                <button onClick={signOut} className="text-sm font-bold text-slate-400">Logout</button>
+                <button
+                    onClick={signOut}
+                    className="text-sm font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-xl transition-all duration-200 flex items-center gap-1.5 active:scale-95"
+                >
+                    <LogOut size={16} />
+                    Logout
+                </button>
             </nav>
 
             <main className="max-w-xl mx-auto p-6 space-y-10 pb-32">
@@ -152,7 +163,16 @@ export default function CustomerDashboard() {
                                 key={order.id}
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4"
+                                onClick={() => {
+                                    if (order.status === 'pending_payment') {
+                                        setSelectedOrder(order);
+                                        setIsModalOpen(true);
+                                    }
+                                }}
+                                className={cn(
+                                    "bg-white border border-slate-100 rounded-3xl p-5 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4 cursor-pointer",
+                                    order.status === 'pending_payment' && "border-blue-100 ring-2 ring-blue-50/50"
+                                )}
                             >
                                 <div className={cn(
                                     "w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl",
@@ -180,8 +200,16 @@ export default function CustomerDashboard() {
             <div className="fixed bottom-0 w-full px-6 pb-6 pointer-events-none">
                 <div className="max-w-md mx-auto h-16 bg-white/90 backdrop-blur-xl border border-slate-200 rounded-2xl shadow-2xl pointer-events-auto flex items-center justify-around px-4">
                     <DockItem icon={<Printer size={20} />} label="Prints" active />
-                    <DockItem icon={<Plus size={20} />} label="Add" />
-                    <DockItem icon={<FileText size={20} />} label="Docs" />
+                    <DockItem
+                        icon={<Plus size={20} />}
+                        label="Add"
+                        onClick={() => shopSettings.is_open && setIsModalOpen(true)}
+                    />
+                    <DockItem
+                        icon={<FileText size={20} />}
+                        label="Docs"
+                        onClick={() => { }} // Could link to a documents page later
+                    />
                 </div>
             </div>
         </div>
@@ -221,12 +249,14 @@ function StatusBadge({ status }: { status: string }) {
     );
 }
 
-function DockItem({ icon, label, active = false }: any) {
+function DockItem({ icon, label, onClick, active = false }: any) {
     return (
-        <button className={cn(
-            "flex flex-col items-center justify-center gap-1 flex-1 h-full rounded-xl transition-all",
-            active ? "text-blue-600" : "text-slate-400 hover:text-slate-600"
-        )}>
+        <button
+            onClick={onClick}
+            className={cn(
+                "flex flex-col items-center justify-center gap-1 flex-1 h-full rounded-xl transition-all",
+                active ? "text-blue-600" : "text-slate-400 hover:text-slate-600"
+            )}>
             {icon}
             <span className="text-[10px] font-bold tracking-tight">{label}</span>
             {active && <div className="w-1 h-1 bg-blue-600 rounded-full" />}

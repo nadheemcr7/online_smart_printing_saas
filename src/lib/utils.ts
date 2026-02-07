@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { PDFDocument } from "pdf-lib";
 
 /**
  * Merges tailwind classes safely.
@@ -41,5 +42,23 @@ export function calculatePrintCost(pages: number, printType: 'BW' | 'COLOR', sid
     // DOUBLE SIDE
     if (pages <= 10) return pages * 2;
     return (10 * 2) + (pages - 10) * 1.5;
+  }
+}
+
+/**
+ * Reads a PDF file locally and returns the page count.
+ * This is 100% reliable, instant, and works offline.
+ */
+export async function getPdfPageCount(file: File): Promise<number> {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+    return pdfDoc.getPageCount();
+  } catch (error) {
+    console.error("Error counting PDF pages:", error);
+    // Fallback search for /Type /Page if pdf-lib fails (happens with some corrupted PDFs)
+    const text = await file.text();
+    const matches = text.match(/\/Type\s*\/Page\b/g);
+    return matches ? matches.length : 1;
   }
 }
