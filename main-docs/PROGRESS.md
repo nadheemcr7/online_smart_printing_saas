@@ -34,8 +34,11 @@
     - [ ] Global order stats
 
 ## Phase 4: Core Workflow & Payments [ ]
-- [ ] Integrate Secure UPI Payments (0% fee)
-- [ ] Implement Gemini AI "File Inspector" (Page counting)
+- [ ] **Smart Payment Flow**:
+    - [ ] Dynamic UPI QR Code generation
+    - [ ] **AI Screenshot Analysis** (OCR + Verification)
+    - [ ] Automated 'Paid' status transitions
+- [x] Implement Gemini AI "File Inspector" (Page counting) [x]
 - [ ] Real-time UI updates (Supabase Realtime)
 - [ ] 24-hour auto-cleanup script for old files
 

@@ -43,10 +43,15 @@
     5. Owner selects multiple orders -> Clicks "Start Printing" -> Files open -> Customers notified.
     6. Owner clicks "Hand Over" -> Status turns Green (Ready) -> Customer picks up -> Files deleted.
 
-### Phase 4: Payment Strategy
+### Phase 4: Payment Strategy (AI Verification)
 - **Primary Method**: **UPI (Unified Payments Interface)**.
 - **Why?**: 0% transaction fees (keeping it free for you/the shop), extremely secure, and instant bank-to-bank transfer.
-- **Switching Logic**: The system uses a simple variable in `.env`. Switching the bank account from the Developer to the Shop Owner takes 1 minute.
+- **Verification Logic**: 
+    1. Student pays the exact amount using a dynamic UPI QR code.
+    2. Student uploads a screenshot of the payment success screen.
+    3. **Gemini 1.5 Flash** analyzes the screenshot to extract the UTR (Transaction ID), Amount, and Timestamp.
+    4. If AI confirms the amount matches the order, the status moves to **`Paid`** instantly.
+    5. This provides a "Gate-way like" experience with **₹0 fees**.
 
 ### Phase 5: Polishing & AI Support
 - **AI Chatbot**: A simple support bot to answer student questions (e.g., "Where is my print?" or "What are the rates?").

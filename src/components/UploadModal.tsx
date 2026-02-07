@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -16,6 +16,7 @@ import {
 import { createBrowserClient } from "@supabase/ssr";
 import { analyzePDFContent } from "@/lib/gemini";
 import { cn, generatePickupCode } from "@/lib/utils";
+import { PaymentView } from "./PaymentView";
 
 interface UploadModalProps {
     isOpen: boolean;
@@ -25,14 +26,28 @@ interface UploadModalProps {
 
 export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
     const [file, setFile] = useState<File | null>(null);
-    const [status, setStatus] = useState<'idle' | 'uploading' | 'analyzing' | 'success' | 'error'>('idle');
+    const [status, setStatus] = useState<'idle' | 'analyzing' | 'uploading' | 'payment' | 'success' | 'error'>('idle');
     const [analysis, setAnalysis] = useState<any>(null);
+    const [order, setOrder] = useState<any>(null);
+    const [vpa, setVpa] = useState<string>("nadheem@okicici"); // Default fallback
     const [error, setError] = useState<string | null>(null);
 
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
+
+    useEffect(() => {
+        supabase
+            .from("profiles")
+            .select("vpa")
+            .eq("role", "owner")
+            .limit(1)
+            .single()
+            .then(({ data }) => {
+                if (data?.vpa) setVpa(data.vpa);
+            });
+    }, [supabase]);
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         if (acceptedFiles[0]) {
@@ -54,24 +69,18 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
         try {
             setStatus('analyzing');
 
-            // 1. Convert to Base64 for Gemini
             const reader = new FileReader();
             const base64Promise = new Promise<string>((resolve) => {
-                reader.onload = () => {
-                    const base64 = (reader.result as string).split(',')[1];
-                    resolve(base64);
-                };
+                reader.onload = () => resolve((reader.result as string).split(',')[1]);
                 reader.readAsDataURL(file);
             });
             const base64Content = await base64Promise;
 
-            // 2. AI Analysis
             const result = await analyzePDFContent(base64Content, file.name);
             setAnalysis(result);
 
             setStatus('uploading');
 
-            // 3. Upload to Supabase Storage
             const filePath = `${userId}/${Date.now()}_${file.name}`;
             const { error: uploadError } = await supabase.storage
                 .from('documents')
@@ -79,36 +88,37 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
 
             if (uploadError) throw uploadError;
 
-            // 4. Create Order in DB
             const pickupCode = generatePickupCode();
-            const { error: orderError } = await supabase
+            const { data: newOrder, error: orderError } = await supabase
                 .from('orders')
                 .insert({
                     customer_id: userId,
                     pickup_code: pickupCode,
-                    status: 'queued',
+                    status: 'pending_payment',
                     total_pages: result.pageCount,
-                    estimated_cost: result.pageCount * 2, // Dummy price for now
+                    estimated_cost: result.pageCount * 2, // ₹2 per page
                     payment_status: 'unpaid'
                 })
                 .select()
                 .single();
 
             if (orderError) throw orderError;
-
-            setStatus('success');
-            setTimeout(() => {
-                onClose();
-                setFile(null);
-                setStatus('idle');
-                setAnalysis(null);
-            }, 2000);
+            setOrder(newOrder);
+            setStatus('payment');
 
         } catch (err: any) {
             console.error(err);
             setError(err.message || "Something went wrong");
             setStatus('error');
         }
+    };
+
+    const reset = () => {
+        setFile(null);
+        setAnalysis(null);
+        setOrder(null);
+        setStatus('idle');
+        setError(null);
     };
 
     return (
@@ -124,6 +134,7 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
                     />
 
                     <motion.div
+                        layout
                         initial={{ scale: 0.95, opacity: 0, y: 20 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -131,8 +142,10 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
                     >
                         <div className="p-8">
                             <div className="flex justify-between items-center mb-8">
-                                <h2 className="text-2xl font-bold font-display">Upload Document</h2>
-                                <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                                <h2 className="text-2xl font-bold font-display">
+                                    {status === 'payment' ? "Final Step: Payment" : "Upload Document"}
+                                </h2>
+                                <button onClick={() => { onClose(); reset(); }} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                                     <X size={20} />
                                 </button>
                             </div>
@@ -184,52 +197,44 @@ export function UploadModal({ isOpen, onClose, userId }: UploadModalProps) {
                                         Continue <ArrowRight size={20} />
                                     </button>
                                 </div>
-                            ) : (
+                            ) : status === 'analyzing' || status === 'uploading' ? (
                                 <div className="flex flex-col items-center justify-center py-12 text-center space-y-6">
                                     <div className="relative">
-                                        {status === 'analyzing' || status === 'uploading' ? (
-                                            <>
-                                                <Loader2 className="animate-spin text-blue-600" size={64} />
-                                                <motion.div
-                                                    animate={{ opacity: [0, 1, 0] }}
-                                                    transition={{ repeat: Infinity, duration: 2 }}
-                                                    className="absolute inset-0 flex items-center justify-center"
-                                                >
-                                                    <Sparkles className="text-blue-400" size={24} />
-                                                </motion.div>
-                                            </>
-                                        ) : (
-                                            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
-                                                <CheckCircle2 size={48} />
-                                            </div>
-                                        )}
+                                        <Loader2 className="animate-spin text-blue-600" size={64} />
+                                        <motion.div
+                                            animate={{ opacity: [0, 1, 0] }}
+                                            transition={{ repeat: Infinity, duration: 2 }}
+                                            className="absolute inset-0 flex items-center justify-center"
+                                        >
+                                            <Sparkles className="text-blue-400" size={24} />
+                                        </motion.div>
                                     </div>
-
                                     <div className="space-y-2">
-                                        <p className="text-xl font-bold font-display tracking-tight text-slate-900">
-                                            {status === 'analyzing' && "AI is scanning your document..."}
-                                            {status === 'uploading' && "Adding to queue..."}
-                                            {status === 'success' && "Success! Your order is in the queue."}
+                                        <p className="text-xl font-bold font-display text-slate-900">
+                                            {status === 'analyzing' ? "AI is scanning your document..." : "Adding to queue..."}
                                         </p>
                                         <p className="text-slate-500 font-medium px-8">
-                                            {status === 'analyzing' && "We're counting pages and checking details to give you the best price."}
-                                            {status === 'uploading' && "Your document is being securely stored and the owner is notified."}
-                                            {status === 'success' && "Wait for the shop owner to start your print. You can see the live status on your dashboard."}
+                                            Calculating the best price for your document.
                                         </p>
                                     </div>
-
-                                    {analysis && status !== 'success' && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            className="bg-blue-50/50 p-4 rounded-2xl w-full border border-blue-100"
-                                        >
-                                            <div className="flex items-center justify-between text-sm">
-                                                <span className="text-slate-500 font-bold">Detected Pages</span>
-                                                <span className="text-blue-600 font-black">{analysis.pageCount} Pages</span>
-                                            </div>
-                                        </motion.div>
-                                    )}
+                                </div>
+                            ) : status === 'payment' ? (
+                                <PaymentView
+                                    orderId={order.id}
+                                    amount={order.estimated_cost}
+                                    vpa="nadheem@okicici" // Placeholder
+                                    onSuccess={() => {
+                                        setStatus('success');
+                                        setTimeout(() => { onClose(); reset(); }, 2000);
+                                    }}
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+                                    <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                                        <CheckCircle2 size={48} />
+                                    </div>
+                                    <h3 className="text-2xl font-bold">In the Queue!</h3>
+                                    <p className="text-slate-500">Redirecting to your dashboard...</p>
                                 </div>
                             )}
                         </div>

@@ -54,3 +54,53 @@ export async function analyzePDFContent(fileBase64: string, fileName: string) {
         throw error;
     }
 }
+
+/**
+ * Analyzes a payment screenshot (GPay, PhonePe, Paytm) to verify UPI payment.
+ */
+export async function analyzePaymentScreenshot(imageBase64: string, expectedAmount: number) {
+    if (!apiKey) {
+        throw new Error("Gemini API key is missing");
+    }
+
+    const prompt = `
+    You are a payment verification assistant. Analyze this UPI payment success screenshot.
+    
+    Tasks:
+    1. Extract the "UTR" or "Transaction ID" (usually 12 digits or alphanumeric).
+    2. Extract the "Amount Paid".
+    3. Verify if the "Amount Paid" matches the Expected Amount: ${expectedAmount}.
+    4. Check if the payment status in the image is "Successful" or "Done".
+
+    Return ONLY a JSON object:
+    {
+      "utr": "string",
+      "amount": number,
+      "isMatch": boolean,
+      "isSuccessful": boolean,
+      "confidence": "low|medium|high"
+    }
+  `;
+
+    try {
+        const result = await geminiModel.generateContent([
+            prompt,
+            {
+                inlineData: {
+                    data: imageBase64,
+                    mimeType: "image/jpeg"
+                }
+            }
+        ]);
+
+        const text = result.response.text();
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+        }
+        throw new Error("Could not verify payment via AI");
+    } catch (error) {
+        console.error("Gemini Payment Analysis Error:", error);
+        throw error;
+    }
+}
