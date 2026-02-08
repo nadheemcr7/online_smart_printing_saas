@@ -16,9 +16,10 @@ import { cn } from "@/lib/utils";
 interface HandoverModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onSuccess?: () => void;
 }
 
-export function HandoverModal({ isOpen, onClose }: HandoverModalProps) {
+export function HandoverModal({ isOpen, onClose, onSuccess }: HandoverModalProps) {
     const [code, setCode] = useState("");
     const [status, setStatus] = useState<'idle' | 'verifying' | 'success' | 'error'>('idle');
     const [message, setMessage] = useState("");
@@ -47,6 +48,7 @@ export function HandoverModal({ isOpen, onClose }: HandoverModalProps) {
 
             if (result && result.success) {
                 setStatus('success');
+                onSuccess?.();
                 setTimeout(() => {
                     handleClose();
                 }, 2000);

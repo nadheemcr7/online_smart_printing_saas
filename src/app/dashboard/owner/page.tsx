@@ -78,16 +78,26 @@ export default function OwnerDashboard() {
     const handleBatchUpdate = async (status: string) => {
         if (selectedOrders.length === 0) return;
 
+        // Save current selection for processing
+        const idsToUpdate = [...selectedOrders];
+
+        // Optimistic UI Update
+        setOrders(prev => prev.map(o =>
+            idsToUpdate.includes(o.id) ? { ...o, status: status as any } : o
+        ));
+        setSelectedOrders([]);
+
         const { error } = await supabase.rpc("batch_update_order_status", {
-            order_ids: selectedOrders,
+            order_ids: idsToUpdate,
             new_status: status
         });
 
-        if (!error) {
-            setSelectedOrders([]);
-            // Fetch immediately for snapiness
-            await fetchOrders();
+        if (error) {
+            alert("Error: " + error.message);
         }
+
+        // Final sync with DB
+        await fetchOrders();
     };
 
     return (
@@ -123,6 +133,7 @@ export default function OwnerDashboard() {
                 <HandoverModal
                     isOpen={isHandoverOpen}
                     onClose={() => setIsHandoverOpen(false)}
+                    onSuccess={fetchOrders}
                 />
 
                 {/* Dashboard Content */}
@@ -170,6 +181,12 @@ export default function OwnerDashboard() {
                                         className="text-sm font-bold hover:text-emerald-400 transition-colors"
                                     >
                                         Mark Ready
+                                    </button>
+                                    <button
+                                        onClick={() => handleBatchUpdate('completed')}
+                                        className="text-sm font-bold hover:text-blue-400 transition-colors"
+                                    >
+                                        Handover
                                     </button>
                                     <button
                                         onClick={() => setSelectedOrders([])}
