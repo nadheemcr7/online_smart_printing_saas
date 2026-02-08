@@ -263,7 +263,6 @@ export function PaymentView({ orderId, amount, vpa, onSuccess, customerName, cus
                 <div className="space-y-4">
                     <button
                         onClick={handleRazorpayPayment}
-                        disabled={status === 'processing'}
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all text-sm disabled:opacity-50"
                     >
                         <Smartphone size={20} />
