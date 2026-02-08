@@ -146,10 +146,20 @@ export function UploadModal({ isOpen, onClose, userId, profile, resumeOrder }: U
 
         try {
             setStatus('analyzing');
-            console.log("Step 1: Analyzing PDF...");
+            console.log("Step 1: Analyzing document...", file.name, file.size);
 
-            // 1. LOCAL SCAN
-            const localPageCount = await getDocumentPageCount(file);
+            // 1. LOCAL SCAN with timeout protection
+            let localPageCount = 1;
+            try {
+                const pageCountPromise = getDocumentPageCount(file);
+                const timeoutPromise = new Promise<number>((_, reject) =>
+                    setTimeout(() => reject(new Error('Timeout')), 30000)
+                );
+                localPageCount = await Promise.race([pageCountPromise, timeoutPromise]);
+            } catch (pageError) {
+                console.warn("Page count detection failed, using 1 page:", pageError);
+                localPageCount = 1;
+            }
             console.log("Step 1 Success: Pages =", localPageCount);
 
             // Parse range count
@@ -160,11 +170,13 @@ export function UploadModal({ isOpen, onClose, userId, profile, resumeOrder }: U
             console.log("Step 2: Calculated Cost =", totalCost);
 
             setStatus('uploading');
-            console.log("Step 3: Uploading to Storage...");
+            console.log("Step 3: Uploading to Storage...", file.size, "bytes");
 
             // 2. Upload to Storage
             const cleanFileName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
             const filePath = `${userId}/${Date.now()}_${cleanFileName}`;
+            console.log("Uploading to path:", filePath);
+
             const { error: uploadError } = await supabase.storage
                 .from('documents')
                 .upload(filePath, file);
@@ -403,6 +415,12 @@ export function UploadModal({ isOpen, onClose, userId, profile, resumeOrder }: U
                                                 : "Uploading your file safely to the shop queue."}
                                         </p>
                                     </div>
+                                    <button
+                                        onClick={() => { reset(); setStatus('idle'); }}
+                                        className="text-sm text-slate-400 hover:text-red-500 font-bold mt-4 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
                                 </div>
                             ) : status === 'payment' ? (
                                 <PaymentView
