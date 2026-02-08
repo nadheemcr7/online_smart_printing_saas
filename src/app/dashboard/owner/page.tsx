@@ -100,6 +100,54 @@ export default function OwnerDashboard() {
         await fetchOrders();
     };
 
+    const handleDirectPrint = async (order: any) => {
+        if (!order.file_path) {
+            alert("No file found for this order.");
+            return;
+        }
+
+        try {
+            // 1. Get signed URL
+            const { data, error } = await supabase.storage
+                .from('documents')
+                .createSignedUrl(order.file_path, 300); // 5 mins
+
+            if (error || !data?.signedUrl) throw new Error("Could not get file access");
+
+            // 2. Clear existing iframe if any
+            const existing = document.getElementById('print-iframe');
+            if (existing) existing.remove();
+
+            // 3. Create hidden iframe
+            const iframe = document.createElement('iframe');
+            iframe.id = 'print-iframe';
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = '0';
+            iframe.src = data.signedUrl;
+
+            // 4. Trigger print on load
+            iframe.onload = () => {
+                iframe.contentWindow?.focus();
+                iframe.contentWindow?.print();
+            };
+
+            document.body.appendChild(iframe);
+
+            // 5. Update Status to 'printing' (if not already)
+            if (order.status === 'queued') {
+                setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'printing' } : o));
+                await supabase.from('orders').update({ status: 'printing' }).eq('id', order.id);
+                fetchOrders();
+            }
+        } catch (err: any) {
+            alert("Print failed: " + err.message);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 flex">
             <OwnerSidebar />
@@ -253,8 +301,19 @@ export default function OwnerDashboard() {
                                                     {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-slate-600">
-                                                {order.total_pages} Pages
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-slate-900">{order.total_pages} Pages</div>
+                                                <div className="flex gap-1 mt-1">
+                                                    <span className={cn(
+                                                        "text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter",
+                                                        order.print_type === 'COLOR' ? "bg-orange-100 text-orange-600 border border-orange-200" : "bg-slate-100 text-slate-600 border border-slate-200"
+                                                    )}>
+                                                        {order.print_type === 'COLOR' ? 'Color' : 'B&W'}
+                                                    </span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter bg-blue-100 text-blue-600 border border-blue-200">
+                                                        {order.side_type === 'DOUBLE' ? 'Double' : 'Single'}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="text-sm font-bold text-slate-900 leading-none">₹{Number(order.estimated_cost).toFixed(2)}</div>
@@ -316,16 +375,7 @@ export default function OwnerDashboard() {
                                                         <button
                                                             onClick={async (e) => {
                                                                 e.stopPropagation();
-                                                                // Optimistic Update
-                                                                setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'printing' } : o));
-
-                                                                const { error } = await supabase.from('orders').update({ status: 'printing' }).eq('id', order.id);
-                                                                if (error) {
-                                                                    alert("Error: " + error.message);
-                                                                    fetchOrders(); // Rollback
-                                                                } else {
-                                                                    await fetchOrders();
-                                                                }
+                                                                handleDirectPrint(order);
                                                             }}
                                                             title="Start Printing"
                                                             className="p-2.5 text-blue-600 hover:bg-blue-100 rounded-xl transition-all border border-blue-200 bg-blue-50 shadow-sm"

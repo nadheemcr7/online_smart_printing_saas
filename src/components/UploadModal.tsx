@@ -108,26 +108,35 @@ export function UploadModal({ isOpen, onClose, userId, resumeOrder }: UploadModa
         if (!file) return;
 
         try {
-            setStatus('uploading');
+            setStatus('analyzing');
+            console.log("Step 1: Analyzing PDF...");
 
-            // 1. LOCAL SCAN (Instant & Reliable)
+            // 1. LOCAL SCAN
             const localPageCount = await getPdfPageCount(file);
-            console.log("Local Page Count:", localPageCount);
+            console.log("Step 1 Success: Pages =", localPageCount);
 
             // Calculate cost
             const totalCost = calculatePrintCost(localPageCount, printType, sideType);
+            console.log("Step 2: Calculated Cost =", totalCost);
 
             setStatus('uploading');
+            console.log("Step 3: Uploading to Storage...");
 
             // 2. Upload to Storage
-            const filePath = `${userId}/${Date.now()}_${file.name}`;
+            const cleanFileName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+            const filePath = `${userId}/${Date.now()}_${cleanFileName}`;
             const { error: uploadError } = await supabase.storage
                 .from('documents')
                 .upload(filePath, file);
 
-            if (uploadError) throw uploadError;
+            if (uploadError) {
+                console.error("Storage Error:", uploadError);
+                throw new Error(`Upload failed: ${uploadError.message}`);
+            }
+            console.log("Step 3 Success: File Path =", filePath);
 
             // 3. Create Order
+            console.log("Step 4: Creating database record...");
             const pickupCode = generatePickupCode();
             const { data: newOrder, error: orderError } = await supabase
                 .from('orders')
@@ -138,18 +147,29 @@ export function UploadModal({ isOpen, onClose, userId, resumeOrder }: UploadModa
                     total_pages: localPageCount,
                     estimated_cost: totalCost,
                     payment_status: 'unpaid',
-                    file_path: filePath
+                    file_path: filePath,
+                    print_type: printType,
+                    side_type: sideType
                 })
                 .select()
                 .single();
 
-            if (orderError) throw orderError;
+            if (orderError) {
+                console.error("Database Error:", orderError);
+                throw new Error(`Order creation failed: ${orderError.message}`);
+            }
+
+            if (!newOrder) {
+                throw new Error("Order was created but could not be retrieved. Please check your network.");
+            }
+
+            console.log("Step 4 Success: Order ID =", newOrder.id);
             setOrder(newOrder);
             setStatus('payment');
 
         } catch (err: any) {
-            console.error(err);
-            setError(err.message || "Something went wrong");
+            console.error("Submission failed:", err);
+            setError(err.message || "An unexpected error occurred. Please try again.");
             setStatus('error');
         }
     };
