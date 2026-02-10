@@ -19,6 +19,14 @@ export function OwnerSidebar() {
     const [shopName, setShopName] = useState("Solve Print");
 
     useEffect(() => {
+        if (!supabase) return;
+
+        // Fast role-based redirect on client side
+        if (profile && profile.role !== 'owner' && profile.role !== 'developer') {
+            window.location.replace("/dashboard/customer");
+            return;
+        }
+
         const fetchName = async () => {
             const { data } = await supabase.from("shop_settings").select("shop_name").limit(1).single();
             if (data?.shop_name) setShopName(data.shop_name);

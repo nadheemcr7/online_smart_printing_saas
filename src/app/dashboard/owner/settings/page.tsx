@@ -17,7 +17,6 @@ import {
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { OwnerSidebar } from "@/components/OwnerSidebar";
 
 export default function OwnerSettingsPage() {
     const { supabase, user } = useAuth();
@@ -108,142 +107,135 @@ export default function OwnerSettingsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 flex">
-            <OwnerSidebar />
-
-            <main className="flex-1 flex flex-col min-w-0">
-                <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-20">
-                    <div className="flex items-center gap-4">
-                        <Link href="/dashboard/owner" className="lg:hidden p-2 hover:bg-slate-50 rounded-xl transition-colors">
-                            <ChevronLeft size={20} className="text-slate-400" />
-                        </Link>
-                        <h2 className="text-lg font-bold">Shop Settings</h2>
-                    </div>
-                    <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-blue-200 disabled:opacity-50 transition-all active:scale-95"
-                    >
-                        {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                        Save Changes
-                    </button>
-                </header>
-
-                <div className="p-8 max-w-2xl mx-auto w-full space-y-8">
-                    {/* Shop Status Banner */}
-                    <div className={cn(
-                        "p-6 rounded-[32px] border-2 flex items-center justify-between transition-all",
-                        settings.is_open ? "bg-emerald-50 border-emerald-100 text-emerald-900" : "bg-red-50 border-red-100 text-red-900"
-                    )}>
-                        <div className="flex items-center gap-4">
-                            <div className={cn(
-                                "w-12 h-12 rounded-full flex items-center justify-center",
-                                settings.is_open ? "bg-emerald-500 text-white" : "bg-red-500 text-white"
-                            )}>
-                                <Power size={24} />
-                            </div>
-                            <div>
-                                <p className="font-bold text-lg">{settings.is_open ? "Shop is Open" : "Shop is Closed"}</p>
-                                <p className="text-xs font-medium opacity-70">Students can {settings.is_open ? "upload documents now" : "no longer upload for now"}</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => setSettings(p => ({ ...p, is_open: !p.is_open }))}
-                            className={cn(
-                                "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-                                settings.is_open ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
-                            )}
-                        >
-                            Toggle Status
-                        </button>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-2 px-2">
-                            <Store size={18} className="text-blue-600" />
-                            <h3 className="font-bold text-slate-400 text-xs uppercase tracking-widest">General Info</h3>
-                        </div>
-                        <div className="bg-white border border-slate-100 rounded-[32px] p-8 shadow-sm">
-                            <div className="space-y-1">
-                                <label className="text-sm font-bold text-slate-700 ml-1">Shop Name</label>
-                                <input
-                                    type="text"
-                                    value={settings.shop_name}
-                                    onChange={(e) => setSettings(p => ({ ...p, shop_name: e.target.value }))}
-                                    className="w-full bg-slate-50 border-none rounded-2xl p-4 font-bold focus:ring-2 focus:ring-blue-600 transition-all outline-none"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-2 px-2">
-                            <CreditCard size={18} className="text-blue-600" />
-                            <h3 className="font-bold text-slate-400 text-xs uppercase tracking-widest">UPI & Finance</h3>
-                        </div>
-                        <div className="bg-white border border-slate-100 rounded-[32px] p-8 shadow-sm space-y-6">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-4">
-                                    <label className="text-sm font-bold text-slate-700 ml-1">Primary UPI ID</label>
-                                    <input
-                                        type="text"
-                                        placeholder="e.g. name@okicici"
-                                        value={settings.primary_vpa}
-                                        onChange={(e) => setSettings(p => ({ ...p, primary_vpa: e.target.value }))}
-                                        className="w-full bg-slate-50 border-none rounded-2xl p-4 font-bold focus:ring-2 focus:ring-blue-600 outline-none"
-                                    />
-                                    <button
-                                        onClick={() => setSettings(p => ({ ...p, active_vpa_type: 'primary' }))}
-                                        className={cn(
-                                            "w-full py-3 rounded-xl text-xs font-bold transition-all",
-                                            settings.active_vpa_type === 'primary' ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
-                                        )}
-                                    >
-                                        {settings.active_vpa_type === 'primary' ? "Currently Active" : "Set Active"}
-                                    </button>
-                                </div>
-                                <div className="space-y-4">
-                                    <label className="text-sm font-bold text-slate-700 ml-1">Backup UPI ID</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Emergency backup"
-                                        value={settings.backup_vpa}
-                                        onChange={(e) => setSettings(p => ({ ...p, backup_vpa: e.target.value }))}
-                                        className="w-full bg-slate-50 border-none rounded-2xl p-4 font-bold focus:ring-2 focus:ring-blue-600 outline-none"
-                                    />
-                                    <button
-                                        onClick={() => setSettings(p => ({ ...p, active_vpa_type: 'backup' }))}
-                                        className={cn(
-                                            "w-full py-3 rounded-xl text-xs font-bold transition-all",
-                                            settings.active_vpa_type === 'backup' ? "bg-orange-600 text-white" : "bg-slate-100 text-slate-500"
-                                        )}
-                                    >
-                                        {settings.active_vpa_type === 'backup' ? "Currently Active" : "Set Active"}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {success && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="fixed bottom-10 left-1/2 -translate-x-1/2 lg:left-[calc(50%+128px)] bg-emerald-600 text-white px-6 py-3 rounded-full font-bold shadow-2xl flex items-center gap-2 z-50"
-                        >
-                            <ShieldCheck size={20} />
-                            Settings Saved Successfully!
-                        </motion.div>
-                    )}
-
-                    {error && (
-                        <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm font-bold">
-                            <AlertCircle size={20} />
-                            {error}
-                        </div>
-                    )}
+        <div className="space-y-8 max-w-2xl mx-auto w-full p-8">
+            <header className="bg-white border border-slate-200 rounded-[32px] h-20 flex items-center justify-between px-8 mb-8">
+                <div className="flex items-center gap-4">
+                    <Link href="/dashboard/owner" className="lg:hidden p-2 hover:bg-slate-50 rounded-xl transition-colors">
+                        <ChevronLeft size={20} className="text-slate-400" />
+                    </Link>
+                    <h2 className="text-xl font-bold">Shop Settings</h2>
                 </div>
-            </main>
+                <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-blue-200 disabled:opacity-50 transition-all active:scale-95"
+                >
+                    {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                    Save Changes
+                </button>
+            </header>
+
+            <div className={cn(
+                "p-6 rounded-[32px] border-2 flex items-center justify-between transition-all",
+                settings.is_open ? "bg-emerald-50 border-emerald-100 text-emerald-900" : "bg-red-50 border-red-100 text-red-900"
+            )}>
+                <div className="flex items-center gap-4">
+                    <div className={cn(
+                        "w-12 h-12 rounded-full flex items-center justify-center",
+                        settings.is_open ? "bg-emerald-500 text-white" : "bg-red-500 text-white"
+                    )}>
+                        <Power size={24} />
+                    </div>
+                    <div>
+                        <p className="font-bold text-lg">{settings.is_open ? "Shop is Open" : "Shop is Closed"}</p>
+                        <p className="text-xs font-medium opacity-70">Students can {settings.is_open ? "upload documents now" : "no longer upload for now"}</p>
+                    </div>
+                </div>
+                <button
+                    onClick={() => setSettings(p => ({ ...p, is_open: !p.is_open }))}
+                    className={cn(
+                        "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                        settings.is_open ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+                    )}
+                >
+                    Toggle Status
+                </button>
+            </div>
+
+            <div className="space-y-4">
+                <div className="flex items-center gap-2 px-2">
+                    <Store size={18} className="text-blue-600" />
+                    <h3 className="font-bold text-slate-400 text-xs uppercase tracking-widest">General Info</h3>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-[32px] p-8 shadow-sm">
+                    <div className="space-y-1">
+                        <label className="text-sm font-bold text-slate-700 ml-1">Shop Name</label>
+                        <input
+                            type="text"
+                            value={settings.shop_name}
+                            onChange={(e) => setSettings(p => ({ ...p, shop_name: e.target.value }))}
+                            className="w-full bg-slate-50 border-none rounded-2xl p-4 font-bold focus:ring-2 focus:ring-blue-600 transition-all outline-none"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <div className="space-y-4">
+                <div className="flex items-center gap-2 px-2">
+                    <CreditCard size={18} className="text-blue-600" />
+                    <h3 className="font-bold text-slate-400 text-xs uppercase tracking-widest">UPI & Finance</h3>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-[32px] p-8 shadow-sm space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-4">
+                            <label className="text-sm font-bold text-slate-700 ml-1">Primary UPI ID</label>
+                            <input
+                                type="text"
+                                placeholder="e.g. name@okicici"
+                                value={settings.primary_vpa}
+                                onChange={(e) => setSettings(p => ({ ...p, primary_vpa: e.target.value }))}
+                                className="w-full bg-slate-50 border-none rounded-2xl p-4 font-bold focus:ring-2 focus:ring-blue-600 outline-none"
+                            />
+                            <button
+                                onClick={() => setSettings(p => ({ ...p, active_vpa_type: 'primary' }))}
+                                className={cn(
+                                    "w-full py-3 rounded-xl text-xs font-bold transition-all",
+                                    settings.active_vpa_type === 'primary' ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
+                                )}
+                            >
+                                {settings.active_vpa_type === 'primary' ? "Currently Active" : "Set Active"}
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <label className="text-sm font-bold text-slate-700 ml-1">Backup UPI ID</label>
+                            <input
+                                type="text"
+                                placeholder="Emergency backup"
+                                value={settings.backup_vpa}
+                                onChange={(e) => setSettings(p => ({ ...p, backup_vpa: e.target.value }))}
+                                className="w-full bg-slate-50 border-none rounded-2xl p-4 font-bold focus:ring-2 focus:ring-blue-600 outline-none"
+                            />
+                            <button
+                                onClick={() => setSettings(p => ({ ...p, active_vpa_type: 'backup' }))}
+                                className={cn(
+                                    "w-full py-3 rounded-xl text-xs font-bold transition-all",
+                                    settings.active_vpa_type === 'backup' ? "bg-orange-600 text-white" : "bg-slate-100 text-slate-500"
+                                )}
+                            >
+                                {settings.active_vpa_type === 'backup' ? "Currently Active" : "Set Active"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {success && (
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="fixed bottom-10 left-1/2 -translate-x-1/2 lg:left-[calc(50%+128px)] bg-emerald-600 text-white px-6 py-3 rounded-full font-bold shadow-2xl flex items-center gap-2 z-50"
+                >
+                    <ShieldCheck size={20} />
+                    Settings Saved Successfully!
+                </motion.div>
+            )}
+
+            {error && (
+                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm font-bold">
+                    <AlertCircle size={20} />
+                    {error}
+                </div>
+            )}
         </div>
     );
 }

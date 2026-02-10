@@ -44,49 +44,22 @@ export async function middleware(request: NextRequest) {
             }
         )
 
+        // Only check session, don't fetch profile to avoid slow DB roundtrips in middleware
         const { data: { user } } = await supabase.auth.getUser()
 
-        // Protected dashboard routes
-        if (isProtected) {
-            if (!user) {
-                return NextResponse.redirect(new URL('/login', request.url))
-            }
-
-            const { data: profileData } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', user.id)
-                .single()
-
-            const role = profileData?.role
-
-            if (pathname.startsWith('/dashboard/owner') && role !== 'owner') {
-                return NextResponse.redirect(new URL('/dashboard/customer', request.url))
-            }
-            if (pathname.startsWith('/dashboard/developer') && role !== 'developer') {
-                return NextResponse.redirect(new URL('/dashboard/owner', request.url))
-            }
+        // 1. Redirect if trying to access dashboard without being logged in
+        if (isProtected && !user) {
+            return NextResponse.redirect(new URL('/login', request.url))
         }
 
-        // Redirect logged-in users away from login/signup
+        // 2. Redirect logged-in users away from login/signup
         if (isAuthPage && user) {
-            const { data: profileData } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', user.id)
-                .single()
-
-            const role = profileData?.role
-            const target = role === 'developer'
-                ? '/dashboard/developer'
-                : role === 'owner'
-                    ? '/dashboard/owner'
-                    : '/dashboard/customer'
-            return NextResponse.redirect(new URL(target, request.url))
+            // Default redirect - role specific redirect will happen on the client side
+            return NextResponse.redirect(new URL('/dashboard/owner', request.url))
         }
+
     } catch (e) {
         console.error('Middleware error:', e)
-        // Don't block the site if auth check fails
     }
 
     return response
