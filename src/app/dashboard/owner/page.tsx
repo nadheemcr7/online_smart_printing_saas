@@ -18,7 +18,8 @@ import {
     Eye,
     Download,
     Trash2,
-    X
+    X,
+    LogOut
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -49,26 +50,39 @@ export default function OwnerDashboard() {
     ];
 
     const fetchOrders = async () => {
-        const { data } = await supabase
-            .from("orders")
-            .select(`
-      *,
-      profiles:customer_id (full_name)
-    `)
-            .neq('status', 'pending_payment') // Hide unpaid orders
-            .order("created_at", { ascending: false });
+        try {
+            setLoading(true);
+            const { data, error } = await supabase
+                .from("orders")
+                .select(`
+                    *,
+                    profiles:customer_id (full_name)
+                `)
+                .neq('status', 'pending_payment')
+                .order("created_at", { ascending: false });
 
-        setOrders(data || []);
-        setLoading(false);
+            if (error) throw error;
+            setOrders(data || []);
+        } catch (err) {
+            console.error("Failed to fetch orders:", err);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const fetchShopSettings = async () => {
-        const { data } = await supabase.from("shop_settings").select("*").limit(1).single();
-        if (data) setShopSettings(data);
+        try {
+            const { data, error } = await supabase.from("shop_settings").select("*").limit(1).single();
+            if (error) throw error;
+            if (data) setShopSettings(data);
+        } catch (err) {
+            console.error("Failed to fetch shop settings:", err);
+        }
     };
 
     const toggleShopStatus = async () => {
         const newStatus = !shopSettings.is_open;
+        // Optimistic update
         setShopSettings(prev => ({ ...prev, is_open: newStatus }));
 
         const { error } = await supabase
@@ -77,28 +91,40 @@ export default function OwnerDashboard() {
             .eq("owner_id", profile?.id);
 
         if (error) {
-            alert("Failed to update shop status: " + error.message);
-            fetchShopSettings();
+            console.error("Failed to update shop status:", error);
+            fetchShopSettings(); // Rollback
         }
     };
 
     useEffect(() => {
+        if (!supabase || !profile) return;
+
         fetchOrders();
         fetchShopSettings();
 
         // Realtime subscription - Instant updates with proper filtering
         const channel = supabase
             .channel("dashboard_sync_v2")
-            .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
+            .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, async (payload) => {
                 const newOrder = payload.new as any;
+
+                // Fetch the customer name separately as postgres_changes doesn't include joins
+                const { data: profileData } = await supabase
+                    .from("profiles")
+                    .select("full_name")
+                    .eq("id", newOrder.customer_id)
+                    .single();
+
+                const orderWithProfile = { ...newOrder, profiles: profileData };
+
                 // Only add to list if it's already paid (not pending_payment)
                 if (newOrder.status !== 'pending_payment') {
-                    setOrders(prev => [newOrder, ...prev]);
+                    setOrders(prev => [orderWithProfile, ...prev]);
                     setNotifications(prev => prev + 1);
                     setNotificationEvents(prev => [{
                         id: newOrder.id,
                         type: 'new_order',
-                        message: `New order #${newOrder.pickup_code} ready for printing`,
+                        message: `New order #${newOrder.pickup_code} ready`,
                         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                         status: newOrder.status
                     }, ...prev].slice(0, 10));
@@ -109,8 +135,13 @@ export default function OwnerDashboard() {
                 const oldOrder = payload.old as any;
 
                 // If order just got paid (moved from pending_payment to queued), ADD it to the list
-                if (oldOrder.status === 'pending_payment' && updatedOrder.status === 'queued') {
-                    setOrders(prev => [updatedOrder, ...prev]);
+                // Safe check for old status
+                const wasPending = oldOrder && oldOrder.status === 'pending_payment';
+                const isNowQueued = updatedOrder.status === 'queued';
+
+                if (wasPending && isNowQueued) {
+                    // It's a newly paid order
+                    fetchOrders(); // Simplest way to get full data with profile
                     setNotifications(prev => prev + 1);
                     setNotificationEvents(prev => [{
                         id: updatedOrder.id,
@@ -120,14 +151,16 @@ export default function OwnerDashboard() {
                         status: updatedOrder.status
                     }, ...prev].slice(0, 10));
                 } else {
-                    // Update existing order in state
+                    // Just a status update on an existing order
                     setOrders(prev => prev.map(o =>
-                        o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o
+                        o.id === updatedOrder.id
+                            ? { ...o, ...updatedOrder, profiles: o.profiles } // Keep existing profile data
+                            : o
                     ));
                 }
 
                 // Notify on manual payment proof uploads (pending_verification)
-                if (updatedOrder.status === 'pending_verification' && oldOrder.status !== 'pending_verification') {
+                if (updatedOrder.status === 'pending_verification' && (!oldOrder || oldOrder.status !== 'pending_verification')) {
                     setNotifications(prev => prev + 1);
                     setNotificationEvents(prev => [{
                         id: updatedOrder.id,
@@ -144,12 +177,15 @@ export default function OwnerDashboard() {
             .on("postgres_changes", { event: "UPDATE", schema: "public", table: "shop_settings" }, (payload) => {
                 setShopSettings(prev => ({ ...prev, ...payload.new }));
             })
-            .subscribe();
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') console.log("Realtime subscribed!");
+                if (status === 'CHANNEL_ERROR') console.error("Realtime subscription failed!");
+            });
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [supabase, profile]);
+    }, [supabase, profile?.id]);
 
     const toggleSelect = (id: string) => {
         setSelectedOrders(prev =>
@@ -269,30 +305,36 @@ export default function OwnerDashboard() {
 
             {/* Main Content */}
             <main className="flex-1 flex flex-col min-w-0">
-                <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-20">
-                    <h2 className="text-lg font-bold">Shop Queue</h2>
-                    <div className="flex items-center gap-4">
+                <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 md:px-8 sticky top-0 z-20">
+                    <div className="flex items-center gap-2">
+                        <div className="lg:hidden w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
+                            <Printer size={18} />
+                        </div>
+                        <h2 className="text-sm md:text-lg font-bold truncate">Shop Queue</h2>
+                    </div>
+                    <div className="flex items-center gap-2 md:gap-4">
                         {/* Shop Status Toggle */}
                         <button
                             onClick={toggleShopStatus}
                             className={cn(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all shadow-sm border",
+                                "flex items-center gap-2 px-2 md:px-3 py-1.5 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-tighter transition-all shadow-sm border",
                                 shopSettings.is_open
-                                    ? "bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100"
-                                    : "bg-red-50 text-red-600 border-red-100 hover:bg-red-100"
+                                    ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                    : "bg-red-50 text-red-600 border-red-100"
                             )}
                         >
                             <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", shopSettings.is_open ? "bg-emerald-500" : "bg-red-500")} />
-                            {shopSettings.is_open ? "Shop Open" : "Shop Closed"}
+                            <span className="hidden xs:inline">{shopSettings.is_open ? "Open" : "Closed"}</span>
                         </button>
 
                         <button
                             onClick={() => setIsHandoverOpen(true)}
-                            className="bg-blue-600 text-white px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2 hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-100"
+                            className="bg-blue-600 text-white px-3 md:px-4 py-1.5 rounded-full text-[10px] md:text-sm font-bold flex items-center gap-2 hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-100"
                         >
-                            <Handshake size={18} />
-                            Verify Code
+                            <Handshake size={16} />
+                            <span className="hidden sm:inline">Verify Code</span>
                         </button>
+
                         <div className="relative hidden md:block">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                             <input
@@ -302,7 +344,8 @@ export default function OwnerDashboard() {
                                 className="pl-10 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
                             />
                         </div>
-                        <div className="relative">
+
+                        <div className="relative flex items-center">
                             <button
                                 onClick={() => {
                                     setIsNotificationOpen(!isNotificationOpen);
@@ -376,6 +419,13 @@ export default function OwnerDashboard() {
                                 )}
                             </AnimatePresence>
                         </div>
+
+                        <button
+                            onClick={signOut}
+                            className="lg:hidden p-2 text-slate-400 hover:text-red-500 transition-colors ml-2"
+                        >
+                            <LogOut size={20} />
+                        </button>
                     </div>
                 </header>
 
@@ -663,7 +713,7 @@ export default function OwnerDashboard() {
                     </div>
                 </div>
             </main>
-        </div>
+        </div >
     );
 }
 

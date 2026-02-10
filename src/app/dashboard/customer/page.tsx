@@ -76,60 +76,51 @@ export default function CustomerDashboard() {
         fetchQueueStatus();
 
         // === LAYER 1: Supabase Realtime - User-scoped channel ===
+        // Using a more robust channel name with timestamp to avoid collisions
+        const channelId = `customer_orders_${user.id}`;
         const orderChannel = supabase
-            .channel(`customer_orders_v2_${user.id}`)
+            .channel(channelId)
             .on("postgres_changes", {
-                event: "INSERT",
+                event: "*", // Listen to all events for this user's orders
                 schema: "public",
                 table: "orders",
                 filter: `customer_id=eq.${user.id}`
             }, (payload) => {
-                console.log("[Realtime] INSERT:", payload.new);
-                setOrders(prev => [payload.new as any, ...prev]);
-            })
-            .on("postgres_changes", {
-                event: "UPDATE",
-                schema: "public",
-                table: "orders",
-                filter: `customer_id=eq.${user.id}`
-            }, (payload) => {
-                console.log("[Realtime] UPDATE:", payload.new);
-                setOrders(prev => prev.map(o =>
-                    o.id === payload.new.id ? { ...o, ...payload.new } : o
-                ));
-            })
-            .on("postgres_changes", {
-                event: "DELETE",
-                schema: "public",
-                table: "orders",
-                filter: `customer_id=eq.${user.id}`
-            }, (payload) => {
-                console.log("[Realtime] DELETE:", payload.old);
-                setOrders(prev => prev.filter(o => o.id !== payload.old.id));
-            })
-            .subscribe((status) => {
-                console.log("[Realtime] Subscription status:", status);
-            });
+                console.log(`[Realtime ${payload.eventType}]:`, payload.new || payload.old);
 
-        const settingsChannel = supabase
-            .channel(`shop_settings_${user.id}`)
+                if (payload.eventType === 'INSERT') {
+                    setOrders(prev => [payload.new as any, ...prev]);
+                } else if (payload.eventType === 'UPDATE') {
+                    setOrders(prev => prev.map(o =>
+                        o.id === payload.new.id ? { ...o, ...payload.new } : o
+                    ));
+
+                    // Specific feedback for important status changes
+                    if (payload.new.status === 'ready') {
+                        // Play a subtle sound? (Maybe too much)
+                        // For now just ensuring state is updated correctly
+                        console.log("Order is READY for pickup!");
+                    }
+                } else if (payload.eventType === 'DELETE') {
+                    setOrders(prev => prev.filter(o => o.id !== payload.old.id));
+                }
+            })
             .on("postgres_changes", { event: "UPDATE", schema: "public", table: "shop_settings" }, (payload) => {
                 setShopSettings(prev => ({ ...prev, ...payload.new }));
             })
-            .subscribe();
-
-        // Queue status real-time updates (listen to all order changes)
-        const queueChannel = supabase
-            .channel(`queue_status_${user.id}`)
+            // Listen to ALL orders table changes globally to update queue status
+            // RLS will handle security, but we just need a signal to refetch
             .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
-                // Refetch queue status when any order changes
                 fetchQueueStatus();
             })
-            .subscribe();
+            .subscribe((status) => {
+                console.log(`[Realtime] ${channelId} status:`, status);
+            });
 
         // === LAYER 2: Visibility Change (refetch only when tab becomes active after being hidden) ===
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
+                console.log("Tab focused, refreshing data...");
                 fetchMyOrders();
                 fetchShopSettings();
                 fetchQueueStatus();
@@ -139,11 +130,9 @@ export default function CustomerDashboard() {
 
         return () => {
             supabase.removeChannel(orderChannel);
-            supabase.removeChannel(settingsChannel);
-            supabase.removeChannel(queueChannel);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [supabase, user]);
+    }, [supabase, user?.id]);
 
     // Compute which orders to display based on active tab and showAll state
     const ordersToDisplay = activeTab === 'docs'

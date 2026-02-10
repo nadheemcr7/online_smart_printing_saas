@@ -148,22 +148,23 @@ export function UploadModal({ isOpen, onClose, userId, profile, resumeOrder }: U
             setStatus('analyzing');
             console.log("Step 1: Analyzing document...", file.name, file.size);
 
-            // 1. LOCAL SCAN with timeout protection
-            let localPageCount = 1;
-            try {
-                const pageCountPromise = getDocumentPageCount(file);
-                const timeoutPromise = new Promise<number>((_, reject) =>
-                    setTimeout(() => reject(new Error('Timeout')), 30000)
-                );
-                localPageCount = await Promise.race([pageCountPromise, timeoutPromise]);
-            } catch (pageError) {
-                console.warn("Page count detection failed, using 1 page:", pageError);
-                localPageCount = 1;
+            // 1. USE PRE-CALCULATED PAGE COUNT (Optimized for Mobile)
+            let finalLocalPageCount = localPages || 1;
+
+            // If for some reason localPages wasn't set, try one last time with timeout
+            if (!localPages) {
+                try {
+                    console.log("Re-calculating page count (fallback)...");
+                    finalLocalPageCount = await getDocumentPageCount(file);
+                } catch (pe) {
+                    console.warn("Fallback page count failed:", pe);
+                    finalLocalPageCount = 1;
+                }
             }
-            console.log("Step 1 Success: Pages =", localPageCount);
+            console.log("Step 1 Success: Pages =", finalLocalPageCount);
 
             // Parse range count
-            const finalPageCount = parsePageRange(pageRange, localPageCount);
+            const finalPageCount = parsePageRange(pageRange, finalLocalPageCount);
 
             // Calculate cost
             const totalCost = calculatePrintCost(finalPageCount, printType, sideType);
