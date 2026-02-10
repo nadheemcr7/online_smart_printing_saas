@@ -143,6 +143,14 @@ export function UploadModal({ isOpen, onClose, userId, profile, resumeOrder }: U
 
     const handleProcess = async () => {
         if (!file) return;
+        if (!userId) {
+            setError("You must be logged in to upload documents.");
+            setStatus('error');
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 1 minute timeout
 
         try {
             setStatus('analyzing');
@@ -151,13 +159,12 @@ export function UploadModal({ isOpen, onClose, userId, profile, resumeOrder }: U
             // 1. USE PRE-CALCULATED PAGE COUNT (Optimized for Mobile)
             let finalLocalPageCount = localPages || 1;
 
-            // If for some reason localPages wasn't set, try one last time with timeout
+            // If for some reason localPages wasn't set, try one last time
             if (!localPages) {
                 try {
-                    console.log("Re-calculating page count (fallback)...");
                     finalLocalPageCount = await getDocumentPageCount(file);
                 } catch (pe) {
-                    console.warn("Fallback page count failed:", pe);
+                    console.warn("Fallback page count failure:", pe);
                     finalLocalPageCount = 1;
                 }
             }
@@ -173,18 +180,24 @@ export function UploadModal({ isOpen, onClose, userId, profile, resumeOrder }: U
             setStatus('uploading');
             console.log("Step 3: Uploading to Storage...", file.size, "bytes");
 
-            // 2. Upload to Storage
+            // 2. Upload to Storage - Use Blob for better mobile compatibility
+            const blob = new Blob([file], { type: 'application/pdf' });
             const cleanFileName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
             const filePath = `${userId}/${Date.now()}_${cleanFileName}`;
+
             console.log("Uploading to path:", filePath);
 
             const { error: uploadError } = await supabase.storage
                 .from('documents')
-                .upload(filePath, file);
+                .upload(filePath, blob, {
+                    contentType: 'application/pdf',
+                    cacheControl: '3600',
+                    upsert: false
+                });
 
             if (uploadError) {
                 console.error("Storage Error:", uploadError);
-                throw new Error(`Upload failed: ${uploadError.message}`);
+                throw new Error(uploadError.message || "Failed to save file to cloud.");
             }
             console.log("Step 3 Success: File Path =", filePath);
 
@@ -210,20 +223,22 @@ export function UploadModal({ isOpen, onClose, userId, profile, resumeOrder }: U
 
             if (orderError) {
                 console.error("Database Error:", orderError);
-                throw new Error(`Order creation failed: ${orderError.message}`);
-            }
-
-            if (!newOrder) {
-                throw new Error("Order was created but could not be retrieved. Please check your network.");
+                throw new Error(orderError.message || "Failed to create order record.");
             }
 
             console.log("Step 4 Success: Order ID =", newOrder.id);
+            clearTimeout(timeoutId);
             setOrder(newOrder);
             setStatus('payment');
 
         } catch (err: any) {
+            clearTimeout(timeoutId);
             console.error("Submission failed:", err);
-            setError(err.message || "An unexpected error occurred. Please try again.");
+            if (err.name === 'AbortError') {
+                setError("Upload timed out. Please check your internet connection and try again.");
+            } else {
+                setError(err.message || "An unexpected error occurred. Please try again.");
+            }
             setStatus('error');
         }
     };
