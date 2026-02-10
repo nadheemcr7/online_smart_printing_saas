@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/hooks/useAuth";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
     Printer,
     Clock,
@@ -51,10 +51,20 @@ export default function OwnerDashboard() {
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
 
+    // Calculate today's revenue
+    const todayRevenue = orders
+        .filter(o => {
+            const orderDate = new Date(o.created_at);
+            const today = new Date();
+            return orderDate.toDateString() === today.toDateString() &&
+                (o.payment_status === 'paid' || o.payment_verified);
+        })
+        .reduce((sum, o) => sum + Number(o.estimated_cost || 0), 0);
+
     // Stats
     const stats = [
         { label: "Shop Status", value: shopSettings.is_open ? "OPEN" : "CLOSED", icon: <TrendingUp className={shopSettings.is_open ? "text-emerald-500" : "text-red-500"} />, isStatus: true },
-        { label: "Verifying", value: orders.filter(o => o.status === 'pending_verification').length, icon: <Hourglass className="text-purple-500" /> },
+        { label: "Today's Revenue", value: `₹${todayRevenue.toFixed(0)}`, icon: <TrendingUp className="text-emerald-500" /> },
         { label: "Queued", value: orders.filter(o => o.status === 'queued').length, icon: <Clock className="text-orange-500" /> },
         { label: "Printing", value: orders.filter(o => o.status === 'printing').length, icon: <Printer className="text-blue-500" /> },
         { label: "Ready", value: orders.filter(o => o.status === 'ready').length, icon: <CheckCircle2 className="text-emerald-500" /> },
@@ -108,18 +118,19 @@ export default function OwnerDashboard() {
     };
 
     useEffect(() => {
-        if (!supabase || !profile) return;
+        if (!supabase || !user) return;
 
         fetchOrders();
         fetchShopSettings();
 
-        // Realtime subscription - Instant updates with proper filtering
+        // Realtime subscription with error recovery
+        const channelName = `owner_dashboard_${user.id}_${Date.now()}`;
         const channel = supabase
-            .channel("dashboard_sync_v2")
+            .channel(channelName)
             .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, async (payload) => {
                 const newOrder = payload.new as any;
 
-                // Fetch the customer name separately as postgres_changes doesn't include joins
+                // Fetch the customer name separately
                 const { data: profileData } = await supabase
                     .from("profiles")
                     .select("full_name")
@@ -128,7 +139,6 @@ export default function OwnerDashboard() {
 
                 const orderWithProfile = { ...newOrder, profiles: profileData };
 
-                // Only add to list if it's already paid (not pending_payment)
                 if (newOrder.status !== 'pending_payment') {
                     setOrders(prev => [orderWithProfile, ...prev]);
                     setNotifications(prev => prev + 1);
@@ -145,14 +155,11 @@ export default function OwnerDashboard() {
                 const updatedOrder = payload.new as any;
                 const oldOrder = payload.old as any;
 
-                // If order just got paid (moved from pending_payment to queued), ADD it to the list
-                // Safe check for old status
                 const wasPending = oldOrder && oldOrder.status === 'pending_payment';
                 const isNowQueued = updatedOrder.status === 'queued';
 
                 if (wasPending && isNowQueued) {
-                    // It's a newly paid order
-                    fetchOrders(); // Simplest way to get full data with profile
+                    fetchOrders();
                     setNotifications(prev => prev + 1);
                     setNotificationEvents(prev => [{
                         id: updatedOrder.id,
@@ -162,15 +169,13 @@ export default function OwnerDashboard() {
                         status: updatedOrder.status
                     }, ...prev].slice(0, 10));
                 } else {
-                    // Just a status update on an existing order
                     setOrders(prev => prev.map(o =>
                         o.id === updatedOrder.id
-                            ? { ...o, ...updatedOrder, profiles: o.profiles } // Keep existing profile data
+                            ? { ...o, ...updatedOrder, profiles: o.profiles }
                             : o
                     ));
                 }
 
-                // Notify on manual payment proof uploads (pending_verification)
                 if (updatedOrder.status === 'pending_verification' && (!oldOrder || oldOrder.status !== 'pending_verification')) {
                     setNotifications(prev => prev + 1);
                     setNotificationEvents(prev => [{
@@ -189,14 +194,22 @@ export default function OwnerDashboard() {
                 setShopSettings(prev => ({ ...prev, ...payload.new }));
             })
             .subscribe((status) => {
-                if (status === 'SUBSCRIBED') console.log("Realtime subscribed!");
-                if (status === 'CHANNEL_ERROR') console.error("Realtime subscription failed!");
+                if (status === 'SUBSCRIBED') console.log('✅ Realtime connected');
+                if (status === 'CHANNEL_ERROR') {
+                    console.warn('⚠️ Realtime channel error - will use polling fallback');
+                }
             });
+
+        // Polling fallback - refresh every 30s in case realtime fails
+        const pollInterval = setInterval(() => {
+            fetchOrders();
+        }, 30000);
 
         return () => {
             supabase.removeChannel(channel);
+            clearInterval(pollInterval);
         };
-    }, [supabase, profile?.id]);
+    }, [supabase, user?.id]);
 
     if (authLoading) {
         return (
