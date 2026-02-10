@@ -35,6 +35,7 @@ export default function OwnerDashboard() {
     const [orders, setOrders] = useState<any[]>([]);
     const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
+    const [archivedRevenue, setArchivedRevenue] = useState(0);
 
     // Protect client side
     useEffect(() => {
@@ -51,8 +52,8 @@ export default function OwnerDashboard() {
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
 
-    // Calculate today's revenue
-    const todayRevenue = orders
+    // Calculate today's revenue (Live + Archived)
+    const todayRevenue = (orders
         .filter(o => {
             const orderDate = new Date(o.created_at);
             const today = new Date();
@@ -61,7 +62,7 @@ export default function OwnerDashboard() {
             const isRevenue = o.payment_status === 'paid' || o.payment_verified || ['queued', 'printing', 'ready', 'completed'].includes(o.status);
             return isToday && isRevenue;
         })
-        .reduce((sum, o) => sum + Number(o.estimated_cost || 0), 0);
+        .reduce((sum, o) => sum + Number(o.estimated_cost || 0), 0)) + archivedRevenue;
 
     // Stats
     const stats = [
@@ -119,11 +120,21 @@ export default function OwnerDashboard() {
         }
     };
 
+    const fetchArchivedStats = async () => {
+        const { data } = await supabase
+            .from('analytics_daily')
+            .select('total_revenue')
+            .eq('date', new Date().toISOString().split('T')[0])
+            .single();
+        if (data) setArchivedRevenue(Number(data.total_revenue));
+    };
+
     useEffect(() => {
         if (!supabase || !user) return;
 
         fetchOrders();
         fetchShopSettings();
+        fetchArchivedStats();
 
         // Realtime subscription with error recovery
         const channelName = `owner_dashboard_${user.id}_${Date.now()}`;
@@ -271,6 +282,7 @@ export default function OwnerDashboard() {
             alert("Error: " + error.message);
         } else {
             setOrders(prev => prev.filter(o => o.id !== id));
+            fetchArchivedStats(); // Refresh archived total after deletion
         }
     };
 
@@ -299,6 +311,7 @@ export default function OwnerDashboard() {
         } else {
             setOrders(prev => prev.filter(o => !idsToDelete.includes(o.id)));
             setSelectedOrders(prev => prev.filter(id => !idsToDelete.includes(id)));
+            fetchArchivedStats(); // Refresh archived total after batch deletion
         }
     };
 

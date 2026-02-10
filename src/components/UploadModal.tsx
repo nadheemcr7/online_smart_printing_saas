@@ -180,17 +180,17 @@ export function UploadModal({ isOpen, onClose, userId, profile, resumeOrder }: U
             setStatus('uploading');
             console.log("Step 3: Uploading to Storage...", file.size, "bytes");
 
-            // 2. Upload to Storage - Use Blob for better mobile compatibility
-            const blob = new Blob([file], { type: 'application/pdf' });
+            // 2. Upload to Storage - Use actual mime type
+            const blob = new Blob([file], { type: file.type || 'application/octet-stream' });
             const cleanFileName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
             const filePath = `${userId}/${Date.now()}_${cleanFileName}`;
 
-            console.log("Uploading to path:", filePath);
+            console.log("Uploading to path:", filePath, "Type:", file.type);
 
             const { error: uploadError } = await supabase.storage
                 .from('documents')
                 .upload(filePath, blob, {
-                    contentType: 'application/pdf',
+                    contentType: file.type || 'application/octet-stream',
                     cacheControl: '3600',
                     upsert: false
                 });
