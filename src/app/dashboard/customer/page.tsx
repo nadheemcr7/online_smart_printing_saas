@@ -20,14 +20,34 @@ import { motion } from "framer-motion";
 import { UploadModal } from "@/components/UploadModal";
 import { cn } from "@/lib/utils";
 
+export const dynamic = 'force-dynamic';
+
 export default function CustomerDashboard() {
-    const { profile, signOut, supabase, user } = useAuth();
+    const { profile, signOut, supabase, user, loading } = useAuth();
     const [orders, setOrders] = useState<any[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [shopSettings, setShopSettings] = useState({ shop_name: "RIDHA PRINTERS", is_open: true });
     const [showAllOrders, setShowAllOrders] = useState(false);
     const [activeTab, setActiveTab] = useState<'prints' | 'docs'>('prints');
+
+    // Protect client side
+    useEffect(() => {
+        if (!loading && !user) {
+            window.location.replace("/login");
+        }
+    }, [user, loading]);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+        );
+    }
+
+    if (!user) return null;
+
     const [queueStatus, setQueueStatus] = useState({ ordersInQueue: 0, totalPages: 0 });
 
     useEffect(() => {

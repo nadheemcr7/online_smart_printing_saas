@@ -28,17 +28,37 @@ import { HandoverModal } from "@/components/HandoverModal";
 import { Handshake } from "lucide-react";
 import { OwnerSidebar } from "@/components/OwnerSidebar";
 
+export const dynamic = 'force-dynamic';
+
 export default function OwnerDashboard() {
-    const { profile, signOut, supabase } = useAuth();
+    const { user, profile, loading: authLoading, signOut, supabase } = useAuth();
     const [orders, setOrders] = useState<any[]>([]);
     const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Protect client side
+    useEffect(() => {
+        if (!authLoading && !user) {
+            window.location.replace("/login");
+        }
+    }, [user, authLoading]);
+
     const [isHandoverOpen, setIsHandoverOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [shopSettings, setShopSettings] = useState({ id: null, is_open: true, shop_name: "RIDHA PRINTERS" });
     const [notifications, setNotifications] = useState(0);
     const [notificationEvents, setNotificationEvents] = useState<any[]>([]);
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+
+    if (authLoading) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+        );
+    }
+
+    if (!user) return null;
 
     // Stats
     const stats = [

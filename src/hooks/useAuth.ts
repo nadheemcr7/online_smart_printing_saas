@@ -16,17 +16,37 @@ export const useAuth = () => {
 
     useEffect(() => {
         const getUser = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-                setUser(session.user);
-                const { data: profileData } = await supabase
-                    .from("profiles")
-                    .select("*")
-                    .eq("id", session.user.id)
-                    .single();
-                setProfile(profileData);
+            try {
+                // Get session first
+                const { data: { session } } = await supabase.auth.getSession();
+
+                if (session) {
+                    // Double check with getUser() for security/staleness
+                    const { data: { user: verifiedUser }, error } = await supabase.auth.getUser();
+
+                    if (error || !verifiedUser) {
+                        setUser(null);
+                        setProfile(null);
+                    } else {
+                        setUser(verifiedUser);
+                        const { data: profileData } = await supabase
+                            .from("profiles")
+                            .select("*")
+                            .eq("id", verifiedUser.id)
+                            .single();
+                        setProfile(profileData);
+                    }
+                } else {
+                    setUser(null);
+                    setProfile(null);
+                }
+            } catch (err) {
+                console.error("Auth initialization error:", err);
+                setUser(null);
+                setProfile(null);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
 
         getUser();

@@ -19,14 +19,23 @@ import { motion } from "framer-motion";
 import { cn, formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 
+export const dynamic = 'force-dynamic';
+
 export default function DeveloperDashboard() {
-    const { profile, signOut, supabase, user } = useAuth();
+    const { user, profile, loading: authLoading, signOut, supabase } = useAuth();
     const [stats, setStats] = useState<any>(null);
     const [recentOrders, setRecentOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // Protect client side
     useEffect(() => {
-        if (!user || profile?.role !== 'developer') return;
+        if (!authLoading && !user) {
+            window.location.replace("/login");
+        }
+    }, [user, authLoading]);
+
+    useEffect(() => {
+        if (!user || profile?.role !== 'developer' || authLoading) return;
 
         const fetchGlobalStats = async () => {
             // Get total platform stats
@@ -59,7 +68,7 @@ export default function DeveloperDashboard() {
         fetchGlobalStats();
     }, [supabase, user, profile]);
 
-    if (loading) {
+    if (authLoading || loading) {
         return (
             <div className="min-h-screen bg-slate-950 flex items-center justify-center">
                 <Loader2 className="animate-spin text-blue-500" size={32} />
