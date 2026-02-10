@@ -10,6 +10,7 @@ This document serves as the comprehensive "Source of Truth" for the Solve Print 
 - **Frontend**: Next.js 14+ (App Router), Tailwind CSS, Framer Motion (Animations), Lucide React (Icons).
 - **Backend**: Supabase (Postgres Database, Auth, Storage, Edge Functions, Realtime).
 - **State Management**: Custom `useAuth` hook for persistent user & profile state.
+- **Architecture**: Persistent Layout Pattern (Shared `layout.tsx` for Owner dashboard to prevent re-mounting sidebar and repeated data fetching).
 
 ### Role-Based Access Control (RBAC)
 The system supports three distinct roles, managed via the `public.profiles` table:
@@ -42,6 +43,7 @@ The system supports three distinct roles, managed via the `public.profiles` tabl
     - **Open/Close Toggle**: Prevents/Allows new uploads.
     - **VPA Management**: Dynamic switching between Primary and Backup UPI IDs.
 - **Today's Revenue Stat**: Real-time ticker showing confirmed earnings for the current date.
+- **Persistent Sidebar**: The navigation menu stays mounted across all dashboard sub-pages, eliminating the "blank screen" effect during navigation.
 
 ### 📊 Analytics & Insights
 - **Revenue Overview**: Tracking Today's Revenue, Weekly Revenue, and Pending Value.
@@ -66,10 +68,12 @@ The system supports three distinct roles, managed via the `public.profiles` tabl
     2. The database record is deleted.
 - **Safety**: The database trigger `trigger_cleanup_storage_on_delete` was removed because direct SQL deletion of storage files is forbidden. Deletion must always be handled via the frontend SDK or an Edge Function.
 
-### 3. Middleware & Security
+### 3. Middleware & Performance Security
 - **File**: `src/middleware.ts`.
-- **Function**: Protects `/dashboard/*` routes. It verifies the user session and checks the `role` to prevent unauthorized access (e.g., a Customer trying to access `/dashboard/owner`).
-- **Optimization**: It ignores landing pages and static assets to ensure high-speed page loads.
+- **Logic**: 
+    - **Ultra-Fast Path**: Middleware only performs session verification. It **never** queries the database to check roles, ensuring sub-100ms request handling.
+    - **Client-Side RBAC**: Role-based redirection (e.g., redirecting a Customer who tries to access `/owner`) is handled within the `OwnerLayout` and `OwnerSidebar` on the client side. This prevents the "hang" caused by repeated DB round-trips in the middleware.
+- **Next.js Optimization**: Full support for pre-fetching without overloading the backend.
 
 ---
 
@@ -79,7 +83,8 @@ The system supports three distinct roles, managed via the `public.profiles` tabl
 
 | Issue | Potential Cause | Fix |
 | :--- | :--- | :--- |
-| **Blank Dashboard / Loading Spinner** | Middleware or `useAuth` infinite loop. | Ensure `supabase` client is memoized (`useMemo`) and middleware is not intercepting static files. |
+| **Dashboard Navigation Hang** | Middleware doing DB calls on every click. | Refactor middleware to session-only; move role checks to Layout. |
+| **Blank Dashboard / Loading Spinner** | Sidebar re-mounting on every click. | Use a shared `layout.tsx` for the `/dashboard/owner` route. |
 | **Realtime Errors (`CHANNEL_ERROR`)** | Tables not added to publication. | Run SQL: `ALTER PUBLICATION supabase_realtime ADD TABLE orders, shop_settings;` |
 | **Deletion Fails (403)** | Broken DB Trigger. | Drop the trigger `trigger_cleanup_storage_on_delete` from the `orders` table. |
 | **Revenue Stats Drop to ₹0** | History Cleanup. | Ensure the `analytics_daily` table exists and the `snapshot_order_analytics` function is active. |
