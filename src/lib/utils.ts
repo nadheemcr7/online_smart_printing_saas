@@ -154,20 +154,21 @@ async function getDocxPageCount(file: File): Promise<number> {
     const arrayBuffer = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(arrayBuffer);
 
-    // Most Word files store page count in docProps/app.xml
+    // Method 1: Check docProps/app.xml (Standard)
     const appXml = await zip.file("docProps/app.xml")?.async("text");
-
     if (appXml) {
-      // Improved regex to handle namespaces like <it:Pages> or <Pages>
       const match = appXml.match(/<(?:[\w-]*:)?Pages>(\d+)<\/(?:[\w-]*:)?Pages>/i);
-      if (match && match[1]) {
-        return parseInt(match[1]);
-      }
+      if (match && match[1]) return parseInt(match[1]);
     }
 
-    // Fallback: Check if it's a very simple document, one page is a safe default
-    // but we log it to help debug if it keeps failing.
-    console.warn("Could not find <Pages> tag in docProps/app.xml for:", file.name);
+    // Method 2: Fallback to docProps/core.xml
+    const coreXml = await zip.file("docProps/core.xml")?.async("text");
+    if (coreXml) {
+      const match = coreXml.match(/<(?:[\w-]*:)?pages>(\d+)<\/(?:[\w-]*:)?pages>/i);
+      if (match && match[1]) return parseInt(match[1]);
+    }
+
+    console.warn("Could not find page count in metadata for:", file.name);
     return 1;
   } catch (error) {
     console.error("Error counting Word pages:", error);
