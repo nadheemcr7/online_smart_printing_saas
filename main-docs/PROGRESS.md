@@ -70,3 +70,4 @@
 - [x] **Auto-Cleanup**: Automated DB and Storage pruning [x]
 - [x] **Cohesive Sync**: Real-time Shop Status / UPI / Name updates [x]
 - [ ] Mobile responsiveness audit
+- [ ] [Planned Tasks for Next Session](main-docs/NEXT_SESSION_TASKS.md)
