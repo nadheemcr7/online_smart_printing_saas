@@ -1,7 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { PDFDocument } from "pdf-lib";
-import JSZip from "jszip";
+// dynamic imports shifted to functions to improve performance
 
 /**
  * Merges tailwind classes safely.
@@ -137,6 +136,8 @@ export async function getDocumentPageCount(file: File): Promise<number> {
  */
 async function getPdfPageCount(file: File): Promise<number> {
   try {
+    // Dynamic import to keep main bundle light
+    const { PDFDocument } = await import("pdf-lib");
     const arrayBuffer = await file.arrayBuffer();
     const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
     return pdfDoc.getPageCount();
@@ -151,6 +152,8 @@ async function getPdfPageCount(file: File): Promise<number> {
  */
 async function getDocxPageCount(file: File): Promise<number> {
   try {
+    // Dynamic import to keep main bundle light
+    const JSZip = (await import("jszip")).default;
     const arrayBuffer = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(arrayBuffer);
 
