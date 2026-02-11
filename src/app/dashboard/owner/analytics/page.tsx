@@ -1,7 +1,6 @@
 "use client";
 
 import { useAuth } from "@/hooks/useAuth";
-import { useEffect, useState } from "react";
 import {
     TrendingUp,
     DollarSign,
@@ -12,36 +11,34 @@ import {
     ChevronLeft
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { cn, formatCurrency } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 
 export default function AnalyticsPage() {
     const { supabase, user } = useAuth();
-    const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState<any>(null);
-    const [velocity, setVelocity] = useState<any[]>([]);
 
-    useEffect(() => {
-        if (!user) return;
+    // 1. Analytics Stats
+    const { data: stats = { today_revenue: 0, today_orders: 0, today_pages: 0, weekly_revenue: 0 }, isLoading: statsLoading } = useQuery({
+        queryKey: ['owner_analytics_main'],
+        enabled: !!user?.id,
+        queryFn: async () => {
+            const { data } = await supabase.rpc('get_owner_analytics');
+            return data?.[0] || { today_revenue: 0, today_orders: 0, today_pages: 0, weekly_revenue: 0 };
+        }
+    });
 
-        const fetchAnalytics = async () => {
-            const { data: statsData } = await supabase.rpc('get_owner_analytics');
-            if (statsData && statsData[0]) {
-                setStats(statsData[0]);
-            }
+    // 2. Velocity
+    const { data: velocity = [], isLoading: velocityLoading } = useQuery({
+        queryKey: ['owner_velocity'],
+        enabled: !!user?.id,
+        queryFn: async () => {
+            const { data } = await supabase.rpc('get_print_velocity');
+            return data || [];
+        }
+    });
 
-            const { data: velocityData } = await supabase.rpc('get_print_velocity');
-            if (velocityData) {
-                setVelocity(velocityData);
-            }
-
-            setLoading(false);
-        };
-
-        fetchAnalytics();
-    }, [supabase, user]);
-
-    if (loading) {
+    if (statsLoading || velocityLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50">
                 <Loader2 className="animate-spin text-blue-600" size={32} />
@@ -52,25 +49,25 @@ export default function AnalyticsPage() {
     const mainStats = [
         {
             label: "Today's Revenue",
-            value: formatCurrency(stats?.today_revenue || 0),
+            value: formatCurrency(stats.today_revenue || 0),
             icon: <DollarSign className="text-emerald-500" />,
             desc: "Money in bank today"
         },
         {
             label: "Total Orders",
-            value: stats?.today_orders || 0,
+            value: stats.today_orders || 0,
             icon: <ShoppingBag className="text-blue-500" />,
             desc: "Total customers today"
         },
         {
             label: "Pages Printed",
-            value: stats?.today_pages || 0,
+            value: stats.today_pages || 0,
             icon: <FileStack className="text-orange-500" />,
             desc: "Total volume today"
         },
         {
             label: "Weekly Total",
-            value: formatCurrency(stats?.weekly_revenue || 0),
+            value: formatCurrency(stats.weekly_revenue || 0),
             icon: <Calendar className="text-purple-500" />,
             desc: "Last 7 days revenue"
         },
@@ -120,8 +117,8 @@ export default function AnalyticsPage() {
                         <h3 className="text-2xl font-bold">Print Velocity</h3>
                     </div>
                     <div className="relative z-10 flex items-end gap-2 h-32">
-                        {velocity.length > 0 ? velocity.map((v, i) => {
-                            const maxOrders = Math.max(...velocity.map(item => Number(item.order_count)), 5);
+                        {velocity.length > 0 ? velocity.map((v: any, i: number) => {
+                            const maxOrders = Math.max(...velocity.map((item: any) => Number(item.order_count)), 5);
                             const h = (Number(v.order_count) / maxOrders) * 100;
                             return (
                                 <div key={i} className="flex-1 bg-blue-500/20 rounded-t-lg relative group">
@@ -153,7 +150,7 @@ export default function AnalyticsPage() {
                     <div className="space-y-4">
                         <div>
                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Queue Value</p>
-                            <p className="text-3xl font-black text-slate-900">{formatCurrency(stats?.pending_revenue || 0)}</p>
+                            <p className="text-3xl font-black text-slate-900">{formatCurrency(stats.pending_revenue || 0)}</p>
                         </div>
                         <p className="text-xs text-slate-500 font-medium leading-relaxed">
                             Total value of orders currently in your queue.

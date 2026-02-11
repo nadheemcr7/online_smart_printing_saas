@@ -16,143 +16,127 @@ import {
     LogOut,
     Users
 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { UploadModal } from "@/components/UploadModal";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic';
 
 export default function CustomerDashboard() {
-    const { profile, signOut, supabase, user, loading } = useAuth();
-    const [orders, setOrders] = useState<any[]>([]);
+    const { profile, signOut, supabase, user, loading: authLoading } = useAuth();
+    const queryClient = useQueryClient();
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
-    const [shopSettings, setShopSettings] = useState({ shop_name: "RIDHA PRINTERS", is_open: true });
     const [showAllOrders, setShowAllOrders] = useState(false);
     const [activeTab, setActiveTab] = useState<'prints' | 'docs'>('prints');
 
-    // Protect client side
-    useEffect(() => {
-        if (!loading && !user) {
-            window.location.replace("/login");
-        }
-    }, [user, loading]);
+    // 1. Fetch Shop Settings
+    const { data: shopSettings = { shop_name: "RIDHA PRINTERS", is_open: true } } = useQuery({
+        queryKey: ['shop_settings'],
+        queryFn: async () => {
+            const { data } = await supabase.from("shop_settings").select("*").limit(1).single();
+            return data || { shop_name: "RIDHA PRINTERS", is_open: true };
+        },
+        staleTime: 1000 * 60 * 5 // 5 mins
+    });
 
-
-
-    const [queueStatus, setQueueStatus] = useState({ ordersInQueue: 0, totalPages: 0 });
-
-    useEffect(() => {
-        if (!user) return;
-
-        const fetchMyOrders = async () => {
+    // 2. Fetch My Orders
+    const { data: orders = [], isLoading: ordersLoading } = useQuery({
+        queryKey: ['orders', user?.id],
+        enabled: !!user?.id,
+        queryFn: async () => {
+            if (!user?.id) return [];
             const { data } = await supabase
                 .from("orders")
                 .select("*")
                 .eq("customer_id", user.id)
                 .order("created_at", { ascending: false });
+            return data || [];
+        }
+    });
 
-            setOrders(data || []);
-        };
-
-        const fetchShopSettings = async () => {
-            try {
-                const { data, error } = await supabase
-                    .from("shop_settings")
-                    .select("*")
-                    .limit(1)
-                    .single();
-
-                if (error) throw error;
-                if (data) setShopSettings(data);
-            } catch (err) {
-                console.error("Failed to fetch shop settings:", err);
-            }
-        };
-
-        const fetchQueueStatus = async () => {
-            // Use RPC function to get GLOBAL queue count (bypasses RLS)
-            const { data, error } = await supabase.rpc('get_queue_status');
-
-            if (!error && data && data[0]) {
-                setQueueStatus({
+    // 3. Queue Status
+    const { data: queueStatus = { ordersInQueue: 0, totalPages: 0 } } = useQuery({
+        queryKey: ['queue_status'],
+        queryFn: async () => {
+            const { data } = await supabase.rpc('get_queue_status');
+            if (data && data[0]) {
+                return {
                     ordersInQueue: data[0].orders_in_queue || 0,
                     totalPages: data[0].total_pages || 0
-                });
+                };
             }
-        };
+            return { ordersInQueue: 0, totalPages: 0 };
+        },
+        refetchInterval: 30000
+    });
 
-        // Initial fetch
-        fetchMyOrders();
-        fetchShopSettings();
-        fetchQueueStatus();
+    // Protect client side
+    useEffect(() => {
+        if (!authLoading && !user) {
+            window.location.replace("/login");
+        }
+    }, [user, authLoading]);
 
-        // === LAYER 1: Supabase Realtime - User-scoped channel ===
-        // Using a more robust channel name with timestamp to avoid collisions
+    // Realtime Subscriptions
+    useEffect(() => {
+        if (!user) return;
+
         const channelId = `customer_orders_${user.id}`;
-        const orderChannel = supabase
+        const channel = supabase
             .channel(channelId)
-            .on("postgres_changes", {
-                event: "*", // Listen to all events for this user's orders
-                schema: "public",
-                table: "orders",
-                filter: `customer_id=eq.${user.id}`
-            }, (payload) => {
-                console.log(`[Realtime ${payload.eventType}]:`, payload.new || payload.old);
+            // Orders
+            .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `customer_id=eq.${user.id}` }, (payload) => {
+                const currentOrders = queryClient.getQueryData(['orders', user.id]) as any[] || [];
 
                 if (payload.eventType === 'INSERT') {
-                    setOrders(prev => [payload.new as any, ...prev]);
+                    queryClient.setQueryData(['orders', user.id], [payload.new, ...currentOrders]);
                 } else if (payload.eventType === 'UPDATE') {
-                    setOrders(prev => prev.map(o =>
-                        o.id === payload.new.id ? { ...o, ...payload.new } : o
-                    ));
-
-                    // Specific feedback for important status changes
-                    if (payload.new.status === 'ready') {
-                        // Play a subtle sound? (Maybe too much)
-                        // For now just ensuring state is updated correctly
-                        console.log("Order is READY for pickup!");
-                    }
+                    queryClient.setQueryData(['orders', user.id], currentOrders.map(o => o.id === payload.new.id ? { ...o, ...payload.new } : o));
                 } else if (payload.eventType === 'DELETE') {
-                    setOrders(prev => prev.filter(o => o.id !== payload.old.id));
+                    queryClient.setQueryData(['orders', user.id], currentOrders.filter(o => o.id !== payload.old.id));
                 }
             })
+            // Settings
             .on("postgres_changes", { event: "UPDATE", schema: "public", table: "shop_settings" }, (payload) => {
-                setShopSettings(prev => ({ ...prev, ...payload.new }));
+                queryClient.setQueryData(['shop_settings'], (old: any) => ({ ...old, ...payload.new }));
             })
-            // Listen to ALL orders table changes globally to update queue status
-            // RLS will handle security, but we just need a signal to refetch
+            // Queue
             .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
-                fetchQueueStatus();
+                queryClient.invalidateQueries({ queryKey: ['queue_status'] });
             })
-            .subscribe((status) => {
-                console.log(`[Realtime] ${channelId} status:`, status);
-            });
-
-        // === LAYER 2: Visibility Change (refetch only when tab becomes active after being hidden) ===
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                console.log("Tab focused, refreshing data...");
-                fetchMyOrders();
-                fetchShopSettings();
-                fetchQueueStatus();
-            }
-        };
-        document.addEventListener('visibilitychange', handleVisibilityChange);
+            .subscribe();
 
         return () => {
-            supabase.removeChannel(orderChannel);
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            supabase.removeChannel(channel);
         };
-    }, [supabase, user?.id]);
+    }, [supabase, user, queryClient]);
 
-    if (loading) {
+    if (authLoading || ordersLoading) {
         return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="min-h-screen bg-white p-6 space-y-8 max-w-xl mx-auto">
+                <div className="flex items-center justify-between">
+                    <Skeleton className="h-8 w-32" />
+                    <Skeleton className="h-8 w-20" />
+                </div>
+                <div className="space-y-2">
+                    <Skeleton className="h-10 w-48" />
+                    <Skeleton className="h-4 w-32" />
+                </div>
+                <Skeleton className="h-32 w-full rounded-3xl" />
+                <div className="space-y-4">
+                    <Skeleton className="h-24 w-full rounded-2xl" />
+                    <Skeleton className="h-24 w-full rounded-2xl" />
+                    <Skeleton className="h-24 w-full rounded-2xl" />
+                </div>
             </div>
         );
     }
+
+
 
     if (!user) return null;
 

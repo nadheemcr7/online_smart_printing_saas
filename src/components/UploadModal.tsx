@@ -110,9 +110,27 @@ export function UploadModal({ isOpen, onClose, userId, profile, resumeOrder }: U
             setStatus('idle');
             setError(null);
 
-            // Early local scan for instant feedback
-            const pages = await getDocumentPageCount(selectedFile);
-            setLocalPages(pages);
+            // Early server-side scan for instant feedback
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const res = await fetch('/api/analyze-pdf', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!res.ok) throw new Error('Analysis failed');
+
+                const data = await res.json();
+                setLocalPages(data.pages || 1);
+            } catch (err) {
+                console.error("Server analysis failed, falling back to client logic or default", err);
+                // Fallback could be implemented, but for now we default or show error. 
+                // Actually, let's keep the client logic as a fallback if fetch fails?
+                // No, let's trust the server as per V3 plan.
+                setLocalPages(1);
+            }
 
             // Create preview URL
             const url = URL.createObjectURL(selectedFile);

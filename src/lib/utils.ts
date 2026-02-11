@@ -1,7 +1,8 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { PDFDocument } from "pdf-lib";
-import JSZip from "jszip";
+// Removed client-side pdf-lib and jszip to reduce bundle size
+// import { PDFDocument } from "pdf-lib";
+// import JSZip from "jszip";
 
 /**
  * Merges tailwind classes safely.
@@ -78,58 +79,27 @@ export function parsePageRange(range: string, totalPages: number): number {
 }
 
 /**
- * Detects page count for PDF or Word (.docx)
+ * Detects page count via Serverless Function
  */
 export async function getDocumentPageCount(file: File): Promise<number> {
-  const extension = file.name.split('.').pop()?.toLowerCase();
-
-  if (extension === 'pdf') {
-    return getPdfPageCount(file);
-  } else if (extension === 'docx') {
-    return getDocxPageCount(file);
-  } else if (extension === 'doc') {
-    // Legacy .doc is binary and hard to parse client-side accurately
-    // Most users use .docx now, but we return 1 as fallback
-    return 1;
-  }
-
-  return 1;
-}
-
-/**
- * Reads a PDF file locally and returns the page count.
- */
-export async function getPdfPageCount(file: File): Promise<number> {
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
-    return pdfDoc.getPageCount();
-  } catch (error) {
-    console.error("Error counting PDF pages:", error);
-    const text = await file.text();
-    const matches = text.match(/\/Type\s*\/Page\b/g);
-    return matches ? matches.length : 1;
-  }
-}
+    const formData = new FormData();
+    formData.append('file', file);
 
-/**
- * Reads a .docx file and extracts page count from app.xml
- */
-export async function getDocxPageCount(file: File): Promise<number> {
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const zip = await JSZip.loadAsync(arrayBuffer);
-    const appXml = await zip.file("docProps/app.xml")?.async("text");
+    const res = await fetch('/api/analyze-pdf', {
+      method: 'POST',
+      body: formData
+    });
 
-    if (appXml) {
-      const match = appXml.match(/<Pages>(\d+)<\/Pages>/);
-      if (match && match[1]) {
-        return parseInt(match[1]);
-      }
+    if (!res.ok) {
+      console.warn("Server analysis failed");
+      return 1;
     }
-    return 1;
+
+    const data = await res.json();
+    return data.pages || 1;
   } catch (error) {
-    console.error("Error counting Word pages:", error);
+    console.error("Error analyzing document:", error);
     return 1;
   }
 }

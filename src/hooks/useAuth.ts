@@ -1,7 +1,8 @@
 "use client";
 
 import { createBrowserClient } from "@supabase/ssr";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export const useAuth = () => {
     const supabase = useMemo(() => createBrowserClient(
@@ -9,56 +10,41 @@ export const useAuth = () => {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     ), []);
 
-    const [user, setUser] = useState<any>(null);
-    const [profile, setProfile] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
+
+    const { data: user, isLoading: userLoading } = useQuery({
+        queryKey: ['auth', 'user'],
+        queryFn: async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            return session?.user || null;
+        },
+        staleTime: 1000 * 60 * 60, // 1 hour (session doesn't change often)
+    });
+
+    const { data: profile, isLoading: profileLoading } = useQuery({
+        queryKey: ['auth', 'profile', user?.id],
+        queryFn: async () => {
+            if (!user?.id) return null;
+            const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+            return data;
+        },
+        enabled: !!user?.id,
+        staleTime: 1000 * 60 * 60, // 1 hour
+    });
 
     useEffect(() => {
-        const initAuth = async () => {
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session) {
-                    setUser(session.user);
-                    // Fetch profile without blocking loading state
-                    supabase.from("profiles").select("*").eq("id", session.user.id).single()
-                        .then(({ data }) => data && setProfile(data));
-                }
-            } catch (err) {
-                console.error("Auth error:", err);
-            } finally {
-                setLoading(false);
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+                queryClient.invalidateQueries({ queryKey: ['auth'] });
             }
-        };
-
-        initAuth();
-
-        const { data: authListener } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
-                if (session) {
-                    setUser(session.user);
-                    supabase.from("profiles").select("*").eq("id", session.user.id).single()
-                        .then(({ data }) => data && setProfile(data));
-                } else {
-                    setUser(null);
-                    setProfile(null);
-                }
-
-                if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-                    setLoading(false);
-                }
-            }
-        );
-
-        return () => {
-            authListener.subscription.unsubscribe();
-        };
-    }, [supabase]);
+        });
+        return () => subscription.unsubscribe();
+    }, [supabase, queryClient]);
 
     const signOut = async () => {
         try {
             await supabase.auth.signOut();
-            setUser(null);
-            setProfile(null);
+            queryClient.clear(); // Clear all cache
             window.location.replace("/login");
         } catch (error) {
             console.error("Sign out error:", error);
@@ -66,5 +52,5 @@ export const useAuth = () => {
         }
     };
 
-    return { user, profile, loading, signOut, supabase };
+    return { user, profile, loading: userLoading || (user && profileLoading), signOut, supabase };
 };
