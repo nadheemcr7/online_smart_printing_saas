@@ -35,7 +35,7 @@ export function UploadModal({ isOpen, onClose, userId, profile, resumeOrder }: U
     const [printType, setPrintType] = useState<'BW' | 'COLOR'>('BW');
     const [sideType, setSideType] = useState<'SINGLE' | 'DOUBLE'>('SINGLE');
     const [error, setError] = useState<string | null>(null);
-    const [localPages, setLocalPages] = useState<number>(0);
+    const [localPages, setLocalPages] = useState<number>(1);
     const [pageRange, setPageRange] = useState<string>("All");
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -127,6 +127,7 @@ export function UploadModal({ isOpen, onClose, userId, profile, resumeOrder }: U
         if (acceptedFiles[0]) {
             const selectedFile = acceptedFiles[0];
             setFile(selectedFile);
+            setLocalPages(1); // Set to 1 safe default immediately
             setStatus('idle');
             setError(null);
 
@@ -134,23 +135,29 @@ export function UploadModal({ isOpen, onClose, userId, profile, resumeOrder }: U
             const formData = new FormData();
             formData.append('file', selectedFile);
 
+            console.log("Starting server-side analysis for:", selectedFile.name);
+
             try {
                 const res = await fetch('/api/analyze-pdf', {
                     method: 'POST',
                     body: formData
                 });
 
-                if (!res.ok) throw new Error('Analysis failed');
+                if (!res.ok) {
+                    console.warn("Analysis API returned non-OK status:", res.status);
+                    return; // Keep the default of 1
+                }
 
                 const data = await res.json();
-                console.log("Analysis Result:", data);
-                if (data.pages) {
+                console.log("Analysis Result from Server:", data);
+
+                if (data && typeof data.pages === 'number' && data.pages > 0) {
                     setLocalPages(data.pages);
-                    setPageRange("All"); // Reset to 'All' to show correct total initially
+                    setPageRange("All");
                 }
             } catch (err) {
-                console.error("Server analysis failed", err);
-                setLocalPages(1);
+                console.error("Server analysis fetch failed:", err);
+                // We already set it to 1, so no need to do anything here
             }
 
             // Create preview URL

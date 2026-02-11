@@ -111,7 +111,7 @@ export function parsePageRange(range: string, totalPages: number): number {
     }
   });
 
-  return selectedPages.size > 0 ? selectedPages.size : totalPages;
+  return selectedPages.size > 0 ? selectedPages.size : Math.max(1, totalPages);
 }
 
 /**
